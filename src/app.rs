@@ -63,13 +63,7 @@ pub fn App() -> Element {
 
         main { class: "app",
             header { class: "topbar",
-                div {
-                    p { class: "eyebrow", "Metrics playground" }
-                    h1 { "The Observable Café" }
-                    p { class: "subtitle",
-                        "Buy a coffee to increase a counter. Watch the temperatures drift to see how gauges behave."
-                    }
-                }
+                h1 { "The Observable Café" }
                 button { class: "reset", r#type: "button", onclick: reset, "Reset demo" }
             }
 

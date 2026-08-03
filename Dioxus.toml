@@ -2,8 +2,7 @@
 
 [web.app]
 
-# HTML title tag content
-title = "Cafeteria Metrics Demo"
+title = "The Observable Café"
 
 # include `assets` in web platform
 [web.resource]

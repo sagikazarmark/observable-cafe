@@ -14,8 +14,7 @@ pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
             div { class: "notebook",
                 div { class: "notebook-header",
                     div {
-                        p { class: "eyebrow", "Live measurements" }
-                        h2 { id: "notebookTitle", "Café metrics notebook" }
+                        h2 { id: "notebookTitle", "Café observations" }
                     }
                     div { class: "date-stamp", "{date_stamp}" }
                 }
@@ -25,7 +24,7 @@ pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
                         if coffees_sold == 0 {
                             div { class: "empty-state",
                                 strong { "No coffee sales observed yet" }
-                                "Click any coffee to create the counter metric."
+                                "Click any coffee to create the metric."
                             }
                         } else {
                             article { class: "metric entering",
@@ -48,14 +47,12 @@ pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
                         name: "Inside temperature",
                         gauge: inside,
                         color: "var(--inside)",
-                        note: "A gauge can rise or fall. It represents the latest observed value.",
                     }
 
                     TemperatureMetric {
                         name: "Outside temperature",
                         gauge: outside,
                         color: "var(--outside)",
-                        note: "This gauge updates independently every 5–10 seconds.",
                     }
                 }
             }
@@ -64,7 +61,7 @@ pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
 }
 
 #[component]
-fn TemperatureMetric(name: String, gauge: Gauge, color: String, note: String) -> Element {
+fn TemperatureMetric(name: String, gauge: Gauge, color: String) -> Element {
     let value = gauge.value();
 
     rsx! {
@@ -78,7 +75,6 @@ fn TemperatureMetric(name: String, gauge: Gauge, color: String, note: String) ->
                 span { class: "metric-unit", "°C · current value" }
             }
             Sparkline { gauge, color, label: "{name} history" }
-            p { class: "metric-note", "{note}" }
         }
     }
 }
