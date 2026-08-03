@@ -45,7 +45,6 @@ pub fn CoffeeMenu(on_purchase: EventHandler<String>) -> Element {
                     span { class: "coffee-icon", aria_hidden: "true", "{coffee.icon}" }
                     span { class: "coffee-name", "{coffee.name}" }
                     span { class: "coffee-detail", "{coffee.detail}" }
-                    span { class: "tap-hint", "Buy" }
                 }
             }
         }
