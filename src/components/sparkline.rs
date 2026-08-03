@@ -9,9 +9,8 @@ const Y_PADDING: f64 = 8.0;
 
 /// The history of a gauge, drawn as a line with a dot on the latest reading.
 #[component]
-pub fn Sparkline(gauge: ReadSignal<Gauge>, color: String, label: String) -> Element {
+pub fn Sparkline(gauge: Gauge, color: String, label: String) -> Element {
     let points = {
-        let gauge = gauge.read();
         let usable_width = WIDTH - X_PADDING * 2.0;
         let usable_height = HEIGHT - Y_PADDING * 2.0;
         let denominator = gauge.history().len().saturating_sub(1).max(1) as f64;

@@ -4,7 +4,7 @@ use crate::state::Gauge;
 
 /// Thermometers mirroring the two gauges tracked in the notebook.
 #[component]
-pub fn Thermometers(inside: ReadSignal<Gauge>, outside: ReadSignal<Gauge>) -> Element {
+pub fn Thermometers(inside: Gauge, outside: Gauge) -> Element {
     rsx! {
         div { class: "thermometers", aria_label: "Current temperatures",
             Thermometer { variant: "inside", label: "Inside temperature", gauge: inside }
@@ -14,11 +14,10 @@ pub fn Thermometers(inside: ReadSignal<Gauge>, outside: ReadSignal<Gauge>) -> El
 }
 
 #[component]
-fn Thermometer(variant: String, label: String, gauge: ReadSignal<Gauge>) -> Element {
-    let (level, value, change) = {
-        let gauge = gauge.read();
-        (gauge.level(), gauge.value(), gauge.change_label())
-    };
+fn Thermometer(variant: String, label: String, gauge: Gauge) -> Element {
+    let level = gauge.level();
+    let value = gauge.value();
+    let change = gauge.change_label();
 
     rsx! {
         article { class: "thermo-card {variant}",

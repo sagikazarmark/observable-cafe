@@ -6,11 +6,7 @@ use crate::state::Gauge;
 
 /// The notebook where every observed metric is written down.
 #[component]
-pub fn Notebook(
-    coffees_sold: ReadSignal<u32>,
-    inside: ReadSignal<Gauge>,
-    outside: ReadSignal<Gauge>,
-) -> Element {
+pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
     let date_stamp = use_signal(|| Local::now().format("%b %d, %Y").to_string().to_uppercase());
 
     rsx! {
@@ -26,7 +22,7 @@ pub fn Notebook(
 
                 div { class: "metric-list",
                     div {
-                        if coffees_sold() == 0 {
+                        if coffees_sold == 0 {
                             div { class: "empty-state",
                                 strong { "No coffee sales observed yet" }
                                 "Click any coffee to create the counter metric."
@@ -68,13 +64,8 @@ pub fn Notebook(
 }
 
 #[component]
-fn TemperatureMetric(
-    name: String,
-    gauge: ReadSignal<Gauge>,
-    color: String,
-    note: String,
-) -> Element {
-    let value = gauge.read().value();
+fn TemperatureMetric(name: String, gauge: Gauge, color: String, note: String) -> Element {
+    let value = gauge.value();
 
     rsx! {
         article { class: "metric",

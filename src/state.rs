@@ -1,36 +1,66 @@
+//! The state the server keeps and hands to the browser.
+//!
+//! Everything here crosses the wire, so it only describes what has been
+//! observed. How the observations come about lives in [`crate::server`].
+
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 /// How many readings a gauge keeps around for its sparkline.
+#[cfg(feature = "server")]
 const HISTORY_LIMIT: usize = 14;
 
-/// A temperature reading that drifts up and down over time.
-#[derive(Clone, PartialEq)]
+/// Everything the café has observed so far.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Snapshot {
+    pub coffees_sold: u32,
+    pub inside: Gauge,
+    pub outside: Gauge,
+}
+
+impl Snapshot {
+    /// A café that has not sold anything and has taken a single reading.
+    pub fn new() -> Self {
+        Self {
+            coffees_sold: 0,
+            inside: Gauge::inside(),
+            outside: Gauge::outside(),
+        }
+    }
+}
+
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A temperature reading and the readings that came before it.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Gauge {
     value: i32,
     /// Difference between the current value and the one before it.
     delta: i32,
     history: Vec<i32>,
-    /// Values the reading is allowed to drift between.
-    drift: RangeInclusive<i32>,
     /// Values the thermometer and the sparkline are drawn against.
     scale: RangeInclusive<i32>,
 }
 
 impl Gauge {
     pub fn inside() -> Self {
-        Self::new(22, 16..=28, 14..=30)
+        Self::new(22, 14..=30)
     }
 
     pub fn outside() -> Self {
-        Self::new(17, 6..=30, 4..=32)
+        Self::new(17, 4..=32)
     }
 
-    fn new(initial: i32, drift: RangeInclusive<i32>, scale: RangeInclusive<i32>) -> Self {
+    fn new(initial: i32, scale: RangeInclusive<i32>) -> Self {
         Self {
             value: initial,
             delta: 0,
             history: vec![initial],
-            drift,
             scale,
         }
     }
@@ -43,20 +73,15 @@ impl Gauge {
         &self.history
     }
 
-    /// Moves the reading by `step`, recording the result in the history.
-    pub fn drift(&mut self, step: i32) {
-        // Keep readings realistic while still demonstrating that gauges move
-        // both ways: bounce off an edge instead of clamping to it.
-        let step = if self.drift.contains(&(self.value + step)) {
-            step
-        } else {
-            -step
-        };
+    /// Takes `value` as the latest reading, remembering the previous ones.
+    ///
+    /// Only the café moves a gauge — the browser is handed the result.
+    #[cfg(feature = "server")]
+    pub fn record(&mut self, value: i32) {
+        self.delta = value - self.value;
+        self.value = value;
 
-        self.value += step;
-        self.delta = step;
-
-        self.history.push(self.value);
+        self.history.push(value);
         if self.history.len() > HISTORY_LIMIT {
             self.history.remove(0);
         }

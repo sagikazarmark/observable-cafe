@@ -6,14 +6,17 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
-dioxus = "0.7"
+dioxus = { version = "0.7", features = ["fullstack"] }
+serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-timer = { version = "3", features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 futures-timer = "3"
+tokio = { version = "1", features = ["rt", "time"], optional = true }
 
 [features]
 default = ["web"]
+server = ["dep:tokio", "dioxus/server"]
 web = ["dioxus/web"]

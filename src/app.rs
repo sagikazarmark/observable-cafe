@@ -3,48 +3,60 @@ use std::time::Duration;
 use dioxus::prelude::*;
 use futures_timer::Delay;
 
+use crate::api;
 use crate::components::{CoffeeMenu, Notebook, Thermometers, Toast, use_toaster};
-use crate::rng::Rng;
-use crate::state::Gauge;
+use crate::state::Snapshot;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
+/// How often the page asks the server what it has observed.
+const POLL_INTERVAL: Duration = Duration::from_secs(1);
+
 #[component]
 pub fn App() -> Element {
-    let mut coffees_sold = use_signal(|| 0_u32);
-    let mut inside = use_signal(Gauge::inside);
-    let mut outside = use_signal(Gauge::outside);
+    let mut cafe = use_signal(Snapshot::new);
     let toaster = use_toaster();
 
-    // Both gauges take a new reading every 5–10 seconds, independently of
-    // anything the visitor does.
-    let mut readings = use_future(move || async move {
-        let mut rng = Rng::from_clock();
-
+    // The café keeps counting and measuring whether or not anybody is looking,
+    // so the page holds no state of its own — it re-reads the server's.
+    use_future(move || async move {
         loop {
-            let delay = 5_000 + rng.below(5_001);
-            Delay::new(Duration::from_millis(delay)).await;
+            if let Ok(observed) = api::observe().await {
+                cafe.set(observed);
+            }
 
-            let inside_step = signed_step(&mut rng);
-            let outside_step = signed_step(&mut rng);
-
-            inside.write().drift(inside_step);
-            outside.write().drift(outside_step);
+            Delay::new(POLL_INTERVAL).await;
         }
     });
 
     let purchase = move |name: String| {
-        coffees_sold += 1;
-        toaster.show(format!("{name} purchased · coffees sold: {coffees_sold}"));
+        spawn(async move {
+            let Ok(observed) = api::buy_coffee().await else {
+                return;
+            };
+
+            toaster.show(format!(
+                "{name} purchased · coffees sold: {}",
+                observed.coffees_sold
+            ));
+            cafe.set(observed);
+        });
     };
 
     let reset = move |_| {
-        coffees_sold.set(0);
-        inside.set(Gauge::inside());
-        outside.set(Gauge::outside());
-        readings.restart();
-        toaster.show("Demo reset");
+        spawn(async move {
+            if let Ok(observed) = api::reset().await {
+                cafe.set(observed);
+                toaster.show("Demo reset");
+            }
+        });
     };
+
+    let Snapshot {
+        coffees_sold,
+        inside,
+        outside,
+    } = cafe();
 
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
@@ -69,7 +81,7 @@ pub fn App() -> Element {
                     }
 
                     CoffeeMenu { on_purchase: purchase }
-                    Thermometers { inside, outside }
+                    Thermometers { inside: inside.clone(), outside: outside.clone() }
                 }
 
                 Notebook { coffees_sold, inside, outside }
@@ -77,16 +89,5 @@ pub fn App() -> Element {
         }
 
         Toast { toaster }
-    }
-}
-
-/// A step of one to three degrees, in either direction.
-fn signed_step(rng: &mut Rng) -> i32 {
-    let magnitude = rng.below(3) as i32 + 1;
-
-    if rng.below(2) == 0 {
-        -magnitude
-    } else {
-        magnitude
     }
 }
