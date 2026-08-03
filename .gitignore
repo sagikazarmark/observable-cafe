@@ -13,3 +13,7 @@ devenv.local.yaml
 target/
 
 .env
+
+# Dioxus
+/dist
+/.dioxus
