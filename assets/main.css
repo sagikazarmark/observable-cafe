@@ -18,11 +18,10 @@
 * { box-sizing: border-box; }
 
 /* Stop the rubber-band bounce from exposing the blank canvas past the gradient. */
-html, body { overscroll-behavior: none; }
+html, body { height: 100%; overscroll-behavior: none; }
 
 body {
     margin: 0;
-    min-height: 100vh;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--ink);
     background:
@@ -32,13 +31,20 @@ body {
 
 button, input { font: inherit; }
 
+/* The whole demo is meant to be read at a glance, so it claims exactly one
+   viewport and the notebook takes whatever height is left over. */
 .app {
+    display: flex;
+    flex-direction: column;
     width: min(1180px, calc(100% - 32px));
+    height: 100vh;
+    height: 100dvh;
     margin: 0 auto;
-    padding: 28px 0 34px;
+    padding: 22px 0 26px;
 }
 
 .topbar {
+    flex: none;
     display: flex;
     align-items: end;
     justify-content: space-between;
@@ -68,6 +74,8 @@ h1 {
 .reset:hover { transform: translateY(-1px); background: white; }
 
 .layout {
+    flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: minmax(0, .93fr) minmax(420px, 1.07fr);
     gap: 24px;
@@ -75,6 +83,8 @@ h1 {
 }
 
 .menu-panel {
+    display: flex;
+    flex-direction: column;
     padding: 22px;
     border: 1px solid rgba(74,48,30,.10);
     border-radius: 28px;
@@ -146,11 +156,13 @@ h1 {
 .coffee-name { display: block; font-weight: 800; }
 .coffee-detail { display: block; margin-top: 4px; color: var(--muted); font-size: .8rem; }
 
+/* margin-top: auto pins the thermometers to the foot of the panel. */
 .thermometers {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-    margin-top: 22px;
+    margin-top: auto;
+    padding-top: 22px;
 }
 
 .thermo-card {
@@ -229,16 +241,18 @@ h1 {
 
 .notebook-wrap {
     position: relative;
-    min-height: 680px;
+    min-height: 0;
     filter: drop-shadow(0 20px 30px rgba(67,45,30,.18));
 }
 
 .notebook {
     position: relative;
-    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     overflow: hidden;
     border-radius: 18px 26px 26px 18px;
-    padding: 34px 32px 32px 76px;
+    padding: 28px 32px 26px 76px;
     background:
         linear-gradient(90deg, transparent 0 54px, var(--paper-margin) 54px 56px, transparent 56px),
         repeating-linear-gradient(0deg, transparent 0 31px, var(--paper-line) 31px 32px),
@@ -258,11 +272,12 @@ h1 {
 }
 
 .notebook-header {
+    flex: none;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
-    padding-bottom: 21px;
+    padding-bottom: 16px;
     border-bottom: 2px solid rgba(197,112,63,.24);
 }
 
@@ -285,13 +300,24 @@ h1 {
     transform: rotate(2deg);
 }
 
-.metric-list { display: grid; gap: 18px; margin-top: 22px; }
+/* Spare height is spread between the cards rather than left at the bottom.
+   On a window too short for all three, the list scrolls instead of clipping. */
+.metric-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    grid-auto-rows: min-content;
+    align-content: space-between;
+    gap: 14px;
+    margin-top: 16px;
+}
 
 .metric {
     position: relative;
     border: 1px solid rgba(76,62,48,.13);
     border-radius: 16px;
-    padding: 16px 17px;
+    padding: 13px 17px;
     background: rgba(255,255,255,.73);
     box-shadow: 0 8px 18px rgba(85,72,57,.06);
 }
@@ -343,17 +369,10 @@ h1 {
 
 .metric-unit { color: var(--muted); font-size: .85rem; }
 
-.metric-note {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: .8rem;
-    line-height: 1.45;
-}
-
 .sparkline {
     width: 100%;
-    height: 66px;
-    margin-top: 12px;
+    height: 52px;
+    margin-top: 10px;
     overflow: visible;
 }
 
@@ -362,10 +381,9 @@ h1 {
 .sparkline .dot { stroke: white; stroke-width: 2; }
 
 .empty-state {
-    margin-top: 22px;
     border: 2px dashed rgba(111,78,55,.22);
     border-radius: 16px;
-    padding: 20px;
+    padding: 16px;
     text-align: center;
     color: var(--muted);
     background: rgba(255,255,255,.4);
@@ -391,7 +409,9 @@ h1 {
 
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* Stacked, the two panels no longer fit side by side, so let the page scroll. */
 @media (max-width: 900px) {
+    .app { height: auto; min-height: 100dvh; }
     .layout { grid-template-columns: 1fr; }
     .notebook-wrap { min-height: auto; }
     .notebook { min-height: 620px; }

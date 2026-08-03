@@ -36,9 +36,6 @@ pub fn Notebook(coffees_sold: u32, inside: Gauge, outside: Gauge) -> Element {
                                     span { class: "metric-value", "{coffees_sold}" }
                                     span { class: "metric-unit", "total purchases" }
                                 }
-                                p { class: "metric-note",
-                                    "A counter only increases. Every purchase adds exactly one."
-                                }
                             }
                         }
                     }
