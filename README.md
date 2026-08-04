@@ -1,5 +1,7 @@
 # The Observable Café
 
+![The Observable Café](resources/screenshot.png)
+
 An interactive example for teaching metrics, meant to be embedded in a course
 one lesson at a time. A café owner sells coffee and keeps an eye on two
 thermometers, and every so often writes down what things look like.
