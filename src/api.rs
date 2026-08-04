@@ -5,18 +5,32 @@
 
 use dioxus::prelude::*;
 
+use crate::lesson::Lesson;
 use crate::state::Snapshot;
 
-/// Reports everything the café has observed so far.
+/// Reports the café as it stands, together with what has been written down.
+///
+/// The lesson goes along with the request because the café is set up for one
+/// at a time: asking for a different one opens it afresh, and asking for the
+/// one already showing changes nothing. This is also what starts the clock.
+///
+/// `observe_every` rides along the same way, but means less: it changes how
+/// often the café is written down, not the café.
 #[server]
-pub async fn observe() -> ServerFnResult<Snapshot> {
-    Ok(crate::server::snapshot())
+pub async fn snapshot(lesson: Lesson, observe_every: u64) -> ServerFnResult<Snapshot> {
+    Ok(crate::server::snapshot_for(lesson, observe_every))
 }
 
-/// Rings up a single coffee.
+/// Rings up a single coffee, identified by its position on the menu.
 #[server]
-pub async fn buy_coffee() -> ServerFnResult<Snapshot> {
-    Ok(crate::server::buy_coffee())
+pub async fn buy(drink: usize) -> ServerFnResult<Snapshot> {
+    Ok(crate::server::buy(drink))
+}
+
+/// Asks the owner to write an entry now instead of at the next interval.
+#[server]
+pub async fn note() -> ServerFnResult<Snapshot> {
+    Ok(crate::server::note())
 }
 
 /// Puts the café back to how it opened.

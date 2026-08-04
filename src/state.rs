@@ -5,30 +5,53 @@
 
 use std::ops::RangeInclusive;
 
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
+use crate::clock;
+use crate::menu::{Drink, MENU};
 use crate::season;
 
-/// How many readings a gauge keeps around for its sparkline.
-#[cfg(feature = "server")]
-const HISTORY_LIMIT: usize = 14;
-
-/// Everything the café has observed so far.
+/// Everything the café can say about itself right now.
+///
+/// The counter and the thermometers are the café as it stands this instant;
+/// `observations` is only the part somebody happened to write down.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
-    pub coffees_sold: u32,
+    /// What the café clock reads, so the page can explain why the notebook
+    /// says what it says.
+    pub clock: String,
+    /// The day the café clock is on, for a notebook with nothing in it yet.
+    pub day: String,
+    pub sold: Sales,
     pub inside: Gauge,
     pub outside: Gauge,
+    pub observations: Vec<Observation>,
 }
 
 impl Snapshot {
-    /// A café that has not sold anything and has taken a single reading.
+    /// A café at opening time, before anything has been sold or written down.
+    ///
+    /// The browser draws one of these until the server answers.
     pub fn new() -> Self {
+        let opening = clock::opening();
+
         Self {
-            coffees_sold: 0,
-            inside: Gauge::inside(),
-            outside: Gauge::outside(),
+            clock: clock::written(opening),
+            day: clock::dated(opening),
+            sold: Sales::default(),
+            inside: Gauge::inside(opening),
+            outside: Gauge::outside(opening),
+            observations: Vec::new(),
         }
+    }
+
+    /// The readings one thermometer contributed to the notebook, oldest first.
+    ///
+    /// This is everything a chart of a gauge can honestly be drawn from: the
+    /// values between observations were never recorded anywhere.
+    pub fn recorded(&self, reading: fn(&Observation) -> i32) -> Vec<i32> {
+        self.observations.iter().map(reading).collect()
     }
 }
 
@@ -38,33 +61,87 @@ impl Default for Snapshot {
     }
 }
 
-/// A temperature reading and the readings that came before it.
+/// One entry in the owner's notebook: everything, as it stood at one moment.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Observation {
+    /// Which entry this is, counting from the café opening.
+    ///
+    /// Entries shuffle down the page as the notebook fills and the oldest
+    /// falls off, so the page needs something that stays with an observation
+    /// rather than describing where it currently sits. Two entries can share a
+    /// clock reading; no two share this.
+    pub seq: u64,
+    /// The café clock when this was written, as `09:05`.
+    pub at: String,
+    /// The day it was written on. A lesson left open runs past midnight after
+    /// sixteen minutes, and `09:05` alone would then be two different moments.
+    pub day: String,
+    pub sold: Sales,
+    pub inside: i32,
+    pub outside: i32,
+}
+
+/// How many of each drink has been sold.
+///
+/// Indexed by position in [`MENU`], which is fixed, so counts travel as four
+/// numbers rather than as names repeated on every observation.
+#[derive(Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct Sales([u32; MENU.len()]);
+
+impl Sales {
+    pub fn total(&self) -> u32 {
+        self.0.iter().sum()
+    }
+
+    /// The drinks that have actually been sold, in menu order.
+    ///
+    /// A drink nobody has ordered is absent rather than zero: a series does
+    /// not exist until something has been observed under it, which is why
+    /// graphs come out with gaps in them.
+    pub fn by_drink(&self) -> impl Iterator<Item = (&'static Drink, u32)> {
+        MENU.iter().zip(self.0).filter(|&(_, count)| count > 0)
+    }
+
+    /// Rings up one drink, identified by its position on the menu.
+    #[cfg(feature = "server")]
+    pub fn ring_up(&mut self, drink: usize) {
+        if let Some(count) = self.0.get_mut(drink) {
+            *count += 1;
+        }
+    }
+}
+
+/// A temperature reading, and what it is being read against.
+///
+/// A gauge keeps no history of its own. What was written down lives in the
+/// notebook; what was not is gone, which is rather the point.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Gauge {
     value: i32,
     /// Difference between the current value and the one before it.
     delta: i32,
-    history: Vec<i32>,
-    /// Values the thermometer and the sparkline are drawn against.
+    /// The thermometer's printed scale, which the liquid is drawn against.
+    ///
+    /// Charts do not use this: a fixed instrument range leaves an ordinary
+    /// afternoon looking like a flat line, so they fit their own readings.
     scale: RangeInclusive<i32>,
 }
 
 impl Gauge {
     /// A thermometer indoors, reading what the season suggests it should.
-    pub fn inside() -> Self {
-        Self::new(season::inside(), season::inside_range())
+    pub fn inside(at: DateTime<Local>) -> Self {
+        Self::new(season::inside(at), season::inside_range(at))
     }
 
     /// A thermometer outdoors, reading what the season suggests it should.
-    pub fn outside() -> Self {
-        Self::new(season::outside(), season::outside_range())
+    pub fn outside(at: DateTime<Local>) -> Self {
+        Self::new(season::outside(at), season::outside_range(at))
     }
 
     fn new(initial: i32, scale: RangeInclusive<i32>) -> Self {
         Self {
             value: initial,
             delta: 0,
-            history: vec![initial],
             scale,
         }
     }
@@ -73,35 +150,18 @@ impl Gauge {
         self.value
     }
 
-    pub fn history(&self) -> &[i32] {
-        &self.history
-    }
-
-    /// Takes `value` as the latest reading, remembering the previous ones.
+    /// Takes `value` as the latest reading.
     ///
     /// Only the café moves a gauge — the browser is handed the result.
     #[cfg(feature = "server")]
     pub fn record(&mut self, value: i32) {
         self.delta = value - self.value;
         self.value = value;
-
-        self.history.push(value);
-        if self.history.len() > HISTORY_LIMIT {
-            self.history.remove(0);
-        }
-    }
-
-    /// Where `value` sits on the gauge's scale, as a fraction between 0 and 1.
-    pub fn fraction(&self, value: i32) -> f64 {
-        let clamped = value.clamp(*self.scale.start(), *self.scale.end());
-        let span = self.scale.end() - self.scale.start();
-
-        f64::from(clamped - self.scale.start()) / f64::from(span)
     }
 
     /// Height of the liquid in a thermometer, as a percentage of the tube.
     pub fn level(&self) -> f64 {
-        10.0 + self.fraction(self.value) * 82.0
+        10.0 + fraction(&self.scale, self.value) * 82.0
     }
 
     pub fn change_label(&self) -> String {
@@ -111,4 +171,12 @@ impl Gauge {
             delta => format!("▼ {}°C from previous reading", delta.abs()),
         }
     }
+}
+
+/// Where `value` sits on `scale`, as a fraction between 0 and 1.
+pub fn fraction(scale: &RangeInclusive<i32>, value: i32) -> f64 {
+    let clamped = value.clamp(*scale.start(), *scale.end());
+    let span = (scale.end() - scale.start()).max(1);
+
+    f64::from(clamped - scale.start()) / f64::from(span)
 }
