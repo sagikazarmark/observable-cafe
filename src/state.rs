@@ -7,6 +7,8 @@ use std::ops::RangeInclusive;
 
 use serde::{Deserialize, Serialize};
 
+use crate::season;
+
 /// How many readings a gauge keeps around for its sparkline.
 #[cfg(feature = "server")]
 const HISTORY_LIMIT: usize = 14;
@@ -48,12 +50,14 @@ pub struct Gauge {
 }
 
 impl Gauge {
+    /// A thermometer indoors, reading what the season suggests it should.
     pub fn inside() -> Self {
-        Self::new(22, 14..=30)
+        Self::new(season::inside(), season::inside_range())
     }
 
+    /// A thermometer outdoors, reading what the season suggests it should.
     pub fn outside() -> Self {
-        Self::new(17, 4..=32)
+        Self::new(season::outside(), season::outside_range())
     }
 
     fn new(initial: i32, scale: RangeInclusive<i32>) -> Self {

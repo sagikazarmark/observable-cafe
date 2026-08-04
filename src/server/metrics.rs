@@ -20,10 +20,12 @@ fn exposition(snapshot: &Snapshot) -> String {
         "# HELP cafe_coffees_sold_total Coffees sold since the demo was last reset.\n\
          # TYPE cafe_coffees_sold_total counter\n\
          cafe_coffees_sold_total {sold}\n\
-         # HELP cafe_temperature_celsius Most recent temperature reading.\n\
-         # TYPE cafe_temperature_celsius gauge\n\
-         cafe_temperature_celsius{{location=\"inside\"}} {inside}\n\
-         cafe_temperature_celsius{{location=\"outside\"}} {outside}\n",
+         # HELP cafe_inside_temperature_celsius Most recent reading from the thermometer in the café.\n\
+         # TYPE cafe_inside_temperature_celsius gauge\n\
+         cafe_inside_temperature_celsius {inside}\n\
+         # HELP cafe_outside_temperature_celsius Most recent reading from the thermometer outside.\n\
+         # TYPE cafe_outside_temperature_celsius gauge\n\
+         cafe_outside_temperature_celsius {outside}\n",
         sold = snapshot.coffees_sold,
         inside = snapshot.inside.value(),
         outside = snapshot.outside.value(),

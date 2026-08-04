@@ -1,6 +1,7 @@
 mod api;
 mod app;
 mod components;
+mod season;
 mod state;
 
 #[cfg(feature = "server")]

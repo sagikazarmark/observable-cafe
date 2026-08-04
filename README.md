@@ -34,6 +34,7 @@ sets them for you.
 | `src/app.rs`               | Root component: polling, page layout                |
 | `src/components/`          | Menu, thermometers, notebook, sparkline, toast      |
 | `src/state.rs`             | What the server observes and hands to the browser   |
+| `src/season.rs`            | What the calendar says a thermometer should read    |
 | `src/api.rs`               | Server functions the browser calls                  |
 | `src/server.rs`            | The café: in-memory state and the axum router       |
 | `src/server/simulation.rs` | Readings that move on their own                     |
@@ -44,7 +45,7 @@ sets them for you.
 ## Metrics
 
 ```
-cafe_coffees_sold_total                      counter, reset by the reset button
-cafe_temperature_celsius{location="inside"}  gauge
-cafe_temperature_celsius{location="outside"} gauge
+cafe_coffees_sold_total            counter, reset by the reset button
+cafe_inside_temperature_celsius    gauge
+cafe_outside_temperature_celsius   gauge
 ```
