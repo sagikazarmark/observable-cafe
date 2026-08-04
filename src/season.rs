@@ -1,8 +1,11 @@
-//! What a thermometer ought to read right now.
+//! What a thermometer ought to read at a given moment.
 //!
 //! Temperatures follow the calendar: cold in January, warm in July, and a few
 //! degrees cooler before dawn than mid-afternoon. Working the readings out from
-//! the current date keeps them plausible whenever the demo happens to be run.
+//! a date keeps them plausible whenever the demo happens to be run.
+//!
+//! The moment always comes from [`crate::clock`] rather than the wall clock, so
+//! that the readings agree with the times written in the notebook.
 //!
 //! The numbers describe a temperate climate — mild summers, freezing winters.
 
@@ -28,28 +31,28 @@ const ROOM: f64 = 22.0;
 /// How much of a hot afternoon makes it past the door.
 const DRAUGHT: f64 = 0.25;
 
-/// The temperature outside the café.
-pub fn outside() -> i32 {
-    outside_at(Local::now()).round() as i32
+/// The temperature outside the café at `at`.
+pub fn outside(at: DateTime<Local>) -> i32 {
+    outside_at(at).round() as i32
 }
 
-/// The temperature in the café.
-pub fn inside() -> i32 {
-    inside_at(Local::now()).round() as i32
+/// The temperature in the café at `at`.
+pub fn inside(at: DateTime<Local>) -> i32 {
+    inside_at(at).round() as i32
 }
 
-/// The temperatures outside plausible for the rest of the day.
+/// The temperatures outside plausible across the day `at` falls in.
 ///
 /// Wide enough that a thermometer drawn against it has somewhere to go.
-pub fn outside_range() -> RangeInclusive<i32> {
-    let middle = daily_mean(Local::now()).round() as i32;
+pub fn outside_range(at: DateTime<Local>) -> RangeInclusive<i32> {
+    let middle = daily_mean(at).round() as i32;
 
     (middle - 10)..=(middle + 10)
 }
 
-/// The temperatures inside plausible for the rest of the day.
-pub fn inside_range() -> RangeInclusive<i32> {
-    let middle = indoors(daily_mean(Local::now()) + DAILY_SWING).round() as i32;
+/// The temperatures inside plausible across the day `at` falls in.
+pub fn inside_range(at: DateTime<Local>) -> RangeInclusive<i32> {
+    let middle = indoors(daily_mean(at) + DAILY_SWING).round() as i32;
 
     (middle - 6)..=(middle + 6)
 }

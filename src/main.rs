@@ -1,6 +1,10 @@
 mod api;
 mod app;
+mod clock;
 mod components;
+mod lesson;
+mod menu;
+mod route;
 mod season;
 mod state;
 

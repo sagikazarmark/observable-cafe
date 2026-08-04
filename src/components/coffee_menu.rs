@@ -1,46 +1,21 @@
 use dioxus::prelude::*;
 
-#[derive(Clone, Copy)]
-struct Coffee {
-    icon: &'static str,
-    name: &'static str,
-    detail: &'static str,
-}
+use crate::menu::MENU;
 
-const MENU: [Coffee; 4] = [
-    Coffee {
-        icon: "☕",
-        name: "Espresso",
-        detail: "Small, intense, immediate",
-    },
-    Coffee {
-        icon: "🥛",
-        name: "Cappuccino",
-        detail: "Espresso with velvety foam",
-    },
-    Coffee {
-        icon: "🫗",
-        name: "Latte",
-        detail: "Smooth and milk-forward",
-    },
-    Coffee {
-        icon: "♨️",
-        name: "Americano",
-        detail: "Espresso lengthened with water",
-    },
-];
-
-/// The clickable menu that drives the coffees sold counter.
+/// The clickable menu the coffee counter is driven from.
+///
+/// A purchase reports the drink's position on the menu rather than its name:
+/// that index is what the café counts against, and what becomes a label value.
 #[component]
-pub fn CoffeeMenu(on_purchase: EventHandler<String>) -> Element {
+pub fn CoffeeMenu(on_purchase: EventHandler<usize>) -> Element {
     rsx! {
         div { class: "coffee-grid",
-            for coffee in MENU {
+            for (index , coffee) in MENU.iter().enumerate() {
                 button {
-                    key: "{coffee.name}",
+                    key: "{coffee.key}",
                     class: "coffee-card",
                     r#type: "button",
-                    onclick: move |_| on_purchase.call(coffee.name.to_owned()),
+                    onclick: move |_| on_purchase.call(index),
 
                     span { class: "coffee-icon", aria_hidden: "true", "{coffee.icon}" }
                     span { class: "coffee-name", "{coffee.name}" }

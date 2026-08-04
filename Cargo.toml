@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
-dioxus = { version = "0.7", features = ["fullstack"] }
+dioxus = { version = "0.7", features = ["fullstack", "router"] }
 serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
