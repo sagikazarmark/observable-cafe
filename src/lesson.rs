@@ -26,6 +26,17 @@ impl Lesson {
     /// Every lesson, in the order they are meant to be taken.
     pub const ALL: [Self; 3] = [Self::Samples, Self::Labels, Self::Types];
 
+    /// The lesson named by the CLI and its route.
+    #[cfg(feature = "server")]
+    pub fn named(name: &str) -> Option<Self> {
+        match name {
+            "samples" => Some(Self::Samples),
+            "labels" => Some(Self::Labels),
+            "types" => Some(Self::Types),
+            _ => None,
+        }
+    }
+
     /// What the lesson is called on the index.
     pub fn title(self) -> &'static str {
         match self {

@@ -9,9 +9,9 @@ mod rng;
 mod simulation;
 
 use std::collections::VecDeque;
-use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::sync::{LazyLock, Mutex, MutexGuard, OnceLock};
 
-use dioxus::server::axum::routing::get;
+use dioxus::server::axum::{Router, http::StatusCode, routing::get};
 
 use crate::clock;
 use crate::lesson::Lesson;
@@ -25,6 +25,7 @@ const NOTEBOOK_LIMIT: usize = 60;
 /// The one and only café. It lasts as long as the process does; restarting the
 /// server is the only thing besides the reset button that clears it.
 static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(None, true)));
+static SINGLE_LESSON: OnceLock<Option<Lesson>> = OnceLock::new();
 
 struct Cafe {
     /// Whether the clock writes observations as their interval comes due.
@@ -128,6 +129,11 @@ pub fn snapshot() -> Snapshot {
     cafe().snapshot()
 }
 
+/// The only lesson this process serves, or `None` for the lesson index.
+pub fn single_lesson() -> Option<Lesson> {
+    SINGLE_LESSON.get().copied().flatten()
+}
+
 /// Reports the café to a page showing `lesson`, setting it up for that lesson
 /// first if it is not already.
 ///
@@ -183,15 +189,28 @@ pub fn reset() -> Snapshot {
 ///
 /// The simulation is deliberately not started here — the café stands at
 /// opening time until somebody opens a lesson.
-pub fn launch(automatic_observations: bool) -> ! {
+pub fn launch(automatic_observations: bool, lesson: Option<Lesson>) -> ! {
+    SINGLE_LESSON
+        .set(lesson)
+        .expect("server configuration must only be set once");
     cafe().automatic_observations = automatic_observations;
 
-    dioxus::serve(|| async move {
-        let router =
-            dioxus::server::router(crate::app::App).route("/metrics", get(metrics::scrape));
+    dioxus::serve(move || async move {
+        let router = if lesson.is_some() {
+            single_lesson_router()
+        } else {
+            dioxus::server::router(crate::app::App).route("/metrics", get(metrics::scrape))
+        };
 
         Ok(router)
     })
+}
+
+/// Serves one lesson at the root without installing the multi-lesson fallback.
+fn single_lesson_router() -> Router {
+    dioxus::server::router(crate::app::App)
+        .route("/metrics", get(metrics::scrape))
+        .route("/{*path}", get(|| async { StatusCode::NOT_FOUND }))
 }
 
 #[cfg(test)]

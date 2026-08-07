@@ -19,6 +19,18 @@ const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 #[component]
 pub fn App() -> Element {
+    let single_lesson = use_server_cached(|| {
+        #[cfg(feature = "server")]
+        {
+            crate::server::single_lesson()
+        }
+
+        #[cfg(not(feature = "server"))]
+        {
+            None::<Lesson>
+        }
+    });
+
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
 
@@ -28,7 +40,11 @@ pub fn App() -> Element {
             "@font-face {{ font-family: 'Patrick Hand'; src: url('{HAND}') format('woff2'); font-weight: 400; font-display: swap; }}"
         }
 
-        Router::<Route> {}
+        if let Some(lesson) = single_lesson {
+            Cafe { lesson }
+        } else {
+            Router::<Route> {}
+        }
     }
 }
 
