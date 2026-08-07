@@ -103,38 +103,40 @@ pub fn Cafe(lesson: Lesson) -> Element {
                 }
 
                 div { class: "bar-actions",
-                    label { class: "interval",
-                        "Observe every"
-                        input {
-                            r#type: "number",
-                            min: "{lowest}",
-                            max: "{highest}",
-                            step: "1",
-                            value: "{observe_every}",
-                            // Committed on blur or Enter rather than per
-                            // keystroke: typing 15 passes through 1, and the
-                            // café should not be re-paced by a half-typed
-                            // number. Anything outside the range snaps back.
-                            onchange: move |event| {
-                                let chosen = event
-                                    .value()
-                                    .parse::<u64>()
-                                    .unwrap_or(clock::DEFAULT_OBSERVE_EVERY);
+                    if snapshot.automatic_observations {
+                        label { class: "interval",
+                            "Observe every"
+                            input {
+                                r#type: "number",
+                                min: "{lowest}",
+                                max: "{highest}",
+                                step: "1",
+                                value: "{observe_every}",
+                                // Committed on blur or Enter rather than per
+                                // keystroke: typing 15 passes through 1, and the
+                                // café should not be re-paced by a half-typed
+                                // number. Anything outside the range snaps back.
+                                onchange: move |event| {
+                                    let chosen = event
+                                        .value()
+                                        .parse::<u64>()
+                                        .unwrap_or(clock::DEFAULT_OBSERVE_EVERY);
 
-                                observe_every.set(clock::observe_every(chosen));
-                            },
+                                    observe_every.set(clock::observe_every(chosen));
+                                },
+                            }
+                            "s"
                         }
-                        "s"
-                    }
 
-                    // No link to /metrics here. A lesson is embedded in a
-                    // course page, and pointing away from it is that page's
-                    // business; the index is where the endpoint is offered.
-                    button {
-                        class: "ghost",
-                        r#type: "button",
-                        onclick: note,
-                        "Observe now"
+                        // No link to /metrics here. A lesson is embedded in a
+                        // course page, and pointing away from it is that page's
+                        // business; the index is where the endpoint is offered.
+                        button {
+                            class: "ghost",
+                            r#type: "button",
+                            onclick: note,
+                            "Observe now"
+                        }
                     }
                     button {
                         class: "ghost",

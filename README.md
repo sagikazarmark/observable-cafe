@@ -102,6 +102,9 @@ Then open <http://localhost:8080> for the index, or go straight to a lesson at
 <http://localhost:8080/samples>. The scrape endpoint is at
 <http://localhost:8080/metrics>.
 
+Run `dx serve --args "--disable-automatic-observations"` to stop the server
+adding notebook entries on a timer and hide the observation controls.
+
 ```shell
 dx build --release   # bundles into target/dx/observable-cafe/release/web/public
 cargo clippy --no-default-features --features server

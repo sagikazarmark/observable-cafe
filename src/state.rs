@@ -18,6 +18,8 @@ use crate::season;
 /// `observations` is only the part somebody happened to write down.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
+    /// Whether the server will add notebook entries on its own.
+    pub automatic_observations: bool,
     /// What the café clock reads, so the page can explain why the notebook
     /// says what it says.
     pub clock: String,
@@ -37,6 +39,7 @@ impl Snapshot {
         let opening = clock::opening();
 
         Self {
+            automatic_observations: true,
             clock: clock::written(opening),
             day: clock::dated(opening),
             sold: Sales::default(),

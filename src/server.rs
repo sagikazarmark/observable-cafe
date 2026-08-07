@@ -24,9 +24,11 @@ const NOTEBOOK_LIMIT: usize = 60;
 
 /// The one and only café. It lasts as long as the process does; restarting the
 /// server is the only thing besides the reset button that clears it.
-static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(None)));
+static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(None, true)));
 
 struct Cafe {
+    /// Whether the clock writes observations as their interval comes due.
+    automatic_observations: bool,
     /// The lesson the café is currently set up for.
     ///
     /// `None` until somebody opens one, which is also why the clock has not
@@ -55,10 +57,11 @@ struct Cafe {
 }
 
 impl Cafe {
-    fn new(lesson: Option<Lesson>) -> Self {
+    fn new(lesson: Option<Lesson>, automatic_observations: bool) -> Self {
         let opening = clock::opening();
 
         Self {
+            automatic_observations,
             lesson,
             tick: 0,
             observe_every: clock::DEFAULT_OBSERVE_EVERY,
@@ -75,6 +78,7 @@ impl Cafe {
         let now = clock::at(self.tick);
 
         Snapshot {
+            automatic_observations: self.automatic_observations,
             clock: clock::written(now),
             day: clock::dated(now),
             sold: self.sold,
@@ -103,6 +107,10 @@ impl Cafe {
         if self.notebook.len() > NOTEBOOK_LIMIT {
             self.notebook.pop_front();
         }
+    }
+
+    fn observation_due(&self) -> bool {
+        self.automatic_observations && self.tick - self.last_observed >= self.observe_every
     }
 }
 
@@ -133,7 +141,7 @@ pub fn snapshot_for(lesson: Lesson, observe_every: u64) -> Snapshot {
 
     let mut cafe = cafe();
     if cafe.lesson != Some(lesson) {
-        *cafe = Cafe::new(Some(lesson));
+        *cafe = Cafe::new(Some(lesson), cafe.automatic_observations);
     }
 
     // Applied after any rebuild, and on its own account: the interval belongs
@@ -166,7 +174,7 @@ pub fn note() -> Snapshot {
 
 pub fn reset() -> Snapshot {
     let mut cafe = cafe();
-    *cafe = Cafe::new(cafe.lesson);
+    *cafe = Cafe::new(cafe.lesson, cafe.automatic_observations);
 
     cafe.snapshot()
 }
@@ -175,11 +183,35 @@ pub fn reset() -> Snapshot {
 ///
 /// The simulation is deliberately not started here — the café stands at
 /// opening time until somebody opens a lesson.
-pub fn launch() -> ! {
+pub fn launch(automatic_observations: bool) -> ! {
+    cafe().automatic_observations = automatic_observations;
+
     dioxus::serve(|| async move {
         let router =
             dioxus::server::router(crate::app::App).route("/metrics", get(metrics::scrape));
 
         Ok(router)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cafe;
+
+    #[test]
+    fn disabled_automatic_observations_never_become_due() {
+        let mut cafe = Cafe::new(None, false);
+        cafe.tick = cafe.observe_every;
+
+        assert!(!cafe.observation_due());
+        assert!(!cafe.snapshot().automatic_observations);
+    }
+
+    #[test]
+    fn enabled_automatic_observations_become_due_at_the_interval() {
+        let mut cafe = Cafe::new(None, true);
+        cafe.tick = cafe.observe_every;
+
+        assert!(cafe.observation_due());
+    }
 }

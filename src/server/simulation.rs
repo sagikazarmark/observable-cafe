@@ -135,7 +135,7 @@ pub fn start() {
                     cafe.inside.tick(&mut rng, now);
                     cafe.outside.tick(&mut rng, now);
 
-                    if cafe.tick - cafe.last_observed >= cafe.observe_every {
+                    if cafe.observation_due() {
                         cafe.observe();
                     }
                 }
