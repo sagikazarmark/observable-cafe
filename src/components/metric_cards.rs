@@ -6,7 +6,7 @@ use crate::state::{Gauge, Snapshot};
 /// The same café, sorted by metric rather than by moment.
 ///
 /// This is where a number is named as a counter or a gauge, so it only appears
-/// in the lesson that has the words for it.
+/// in the stage that has the words for it.
 #[component]
 pub fn MetricCards(snapshot: Snapshot) -> Element {
     let inside = snapshot.recorded(|observation| observation.inside);

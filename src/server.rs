@@ -14,7 +14,7 @@ use std::sync::{LazyLock, Mutex, MutexGuard, OnceLock};
 use dioxus::server::axum::{Router, http::StatusCode, routing::get};
 
 use crate::clock;
-use crate::lesson::Lesson;
+use crate::stage::Stage;
 use crate::state::{Observation, Sales, Snapshot};
 use simulation::Thermometer;
 
@@ -25,17 +25,17 @@ const NOTEBOOK_LIMIT: usize = 60;
 /// The one and only café. It lasts as long as the process does; restarting the
 /// server is the only thing besides the reset button that clears it.
 static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(None, true)));
-static SINGLE_LESSON: OnceLock<Option<Lesson>> = OnceLock::new();
+static SINGLE_STAGE: OnceLock<Option<Stage>> = OnceLock::new();
 
 struct Cafe {
     /// Whether the clock writes observations as their interval comes due.
     automatic_observations: bool,
-    /// The lesson the café is currently set up for.
+    /// The stage the café is currently set up for.
     ///
     /// `None` until somebody opens one, which is also why the clock has not
     /// started: an unvisited café should still read 08:00 when it is first
     /// looked at, not whatever time the server happened to boot.
-    lesson: Option<Lesson>,
+    stage: Option<Stage>,
     /// Seconds of real time since opening, and so minutes of café time.
     tick: u64,
     /// Ticks between entries, as whoever is reading has asked for.
@@ -58,12 +58,12 @@ struct Cafe {
 }
 
 impl Cafe {
-    fn new(lesson: Option<Lesson>, automatic_observations: bool) -> Self {
+    fn new(stage: Option<Stage>, automatic_observations: bool) -> Self {
         let opening = clock::opening();
 
         Self {
             automatic_observations,
-            lesson,
+            stage,
             tick: 0,
             observe_every: clock::DEFAULT_OBSERVE_EVERY,
             written: 0,
@@ -124,30 +124,30 @@ fn cafe() -> MutexGuard<'static, Cafe> {
 /// Reports the café without disturbing it, for `/metrics`.
 ///
 /// A scrape is an observer, not a visitor: it neither starts the clock nor
-/// decides which lesson the café is set up for.
+/// decides which stage the café is set up for.
 pub fn snapshot() -> Snapshot {
     cafe().snapshot()
 }
 
-/// The only lesson this process serves, or `None` for the lesson index.
-pub fn single_lesson() -> Option<Lesson> {
-    SINGLE_LESSON.get().copied().flatten()
+/// The only stage this process serves, or `None` for the stage index.
+pub fn single_stage() -> Option<Stage> {
+    SINGLE_STAGE.get().copied().flatten()
 }
 
-/// Reports the café to a page showing `lesson`, setting it up for that lesson
+/// Reports the café to a page showing `stage`, setting it up for that stage
 /// first if it is not already.
 ///
-/// Opening a different lesson puts the café back to opening time, because the
-/// lessons are meant to be arrived at fresh — but reloading the one already
+/// Opening a different stage puts the café back to opening time, because the
+/// stages are meant to be arrived at fresh — but reloading the one already
 /// showing leaves everything alone. Nothing else starts the clock, so it does
 /// not begin until somebody is actually looking.
-pub fn snapshot_for(lesson: Lesson, observe_every: u64) -> Snapshot {
+pub fn snapshot_for(stage: Stage, observe_every: u64) -> Snapshot {
     // Idempotent, so the poll that arrives every second only starts it once.
     simulation::start();
 
     let mut cafe = cafe();
-    if cafe.lesson != Some(lesson) {
-        *cafe = Cafe::new(Some(lesson), cafe.automatic_observations);
+    if cafe.stage != Some(stage) {
+        *cafe = Cafe::new(Some(stage), cafe.automatic_observations);
     }
 
     // Applied after any rebuild, and on its own account: the interval belongs
@@ -180,7 +180,7 @@ pub fn note() -> Snapshot {
 
 pub fn reset() -> Snapshot {
     let mut cafe = cafe();
-    *cafe = Cafe::new(cafe.lesson, cafe.automatic_observations);
+    *cafe = Cafe::new(cafe.stage, cafe.automatic_observations);
 
     cafe.snapshot()
 }
@@ -188,16 +188,16 @@ pub fn reset() -> Snapshot {
 /// Serves the app, its server functions and the scrape endpoint.
 ///
 /// The simulation is deliberately not started here — the café stands at
-/// opening time until somebody opens a lesson.
-pub fn launch(automatic_observations: bool, lesson: Option<Lesson>) -> ! {
-    SINGLE_LESSON
-        .set(lesson)
+/// opening time until somebody opens a stage.
+pub fn launch(automatic_observations: bool, stage: Option<Stage>) -> ! {
+    SINGLE_STAGE
+        .set(stage)
         .expect("server configuration must only be set once");
     cafe().automatic_observations = automatic_observations;
 
     dioxus::serve(move || async move {
-        let router = if lesson.is_some() {
-            single_lesson_router()
+        let router = if stage.is_some() {
+            single_stage_router()
         } else {
             dioxus::server::router(crate::app::App).route("/metrics", get(metrics::scrape))
         };
@@ -206,8 +206,8 @@ pub fn launch(automatic_observations: bool, lesson: Option<Lesson>) -> ! {
     })
 }
 
-/// Serves one lesson at the root without installing the multi-lesson fallback.
-fn single_lesson_router() -> Router {
+/// Serves one stage at the root without installing the multi-stage fallback.
+fn single_stage_router() -> Router {
     dioxus::server::router(crate::app::App)
         .route("/metrics", get(metrics::scrape))
         .route("/{*path}", get(|| async { StatusCode::NOT_FOUND }))

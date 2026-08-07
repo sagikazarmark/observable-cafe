@@ -76,7 +76,7 @@ pub struct Observation {
     pub seq: u64,
     /// The café clock when this was written, as `09:05`.
     pub at: String,
-    /// The day it was written on. A lesson left open runs past midnight after
+    /// The day it was written on. A stage left open runs past midnight after
     /// sixteen minutes, and `09:05` alone would then be two different moments.
     pub day: String,
     pub sold: Sales,

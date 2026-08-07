@@ -152,7 +152,7 @@ fn Entry(observation: Observation, labelled: bool, fresh: bool) -> Element {
                     b { "{observation.sold.total()}" }
                 }
 
-                // Only the lesson about labels breaks the count down, and the
+                // Only the stage about labels breaks the count down, and the
                 // total stays written above it: somebody keeping notes wants
                 // the headline, even though the machine-readable version
                 // publishes the parts alone.

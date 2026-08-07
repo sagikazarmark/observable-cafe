@@ -1,14 +1,14 @@
-//! Where each lesson lives.
+//! Where each stage lives.
 //!
 //! A course embeds whichever URL it is currently explaining. `/metrics` is
 //! deliberately not among these: there is one scrape endpoint, it lives at the
-//! path every real target uses, and it is the same for every lesson.
+//! path every real target uses, and it is the same for every stage.
 
 use dioxus::prelude::*;
 
 use crate::app::Cafe;
-use crate::components::LessonIndex;
-use crate::lesson::Lesson;
+use crate::components::StageIndex;
+use crate::stage::Stage;
 
 #[derive(Routable, Clone, PartialEq, Debug)]
 pub enum Route {
@@ -28,8 +28,8 @@ pub enum Route {
     Missing { segments: Vec<String> },
 }
 
-impl Lesson {
-    /// The page this lesson is served from.
+impl Stage {
+    /// The page this stage is served from.
     pub fn route(self) -> Route {
         match self {
             Self::Samples => Route::Samples {},
@@ -43,28 +43,28 @@ impl Lesson {
 #[component]
 fn Index() -> Element {
     rsx! {
-        LessonIndex {}
+        StageIndex {}
     }
 }
 
 #[component]
 fn Samples() -> Element {
     rsx! {
-        Cafe { lesson: Lesson::Samples }
+        Cafe { stage: Stage::Samples }
     }
 }
 
 #[component]
 fn Labels() -> Element {
     rsx! {
-        Cafe { lesson: Lesson::Labels }
+        Cafe { stage: Stage::Labels }
     }
 }
 
 #[component]
 fn Types() -> Element {
     rsx! {
-        Cafe { lesson: Lesson::Types }
+        Cafe { stage: Stage::Types }
     }
 }
 
@@ -73,6 +73,6 @@ fn Types() -> Element {
 #[component]
 fn Missing(segments: Vec<String>) -> Element {
     rsx! {
-        LessonIndex {}
+        StageIndex {}
     }
 }

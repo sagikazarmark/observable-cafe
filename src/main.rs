@@ -2,10 +2,10 @@ mod api;
 mod app;
 mod clock;
 mod components;
-mod lesson;
 mod menu;
 mod route;
 mod season;
+mod stage;
 mod state;
 
 #[cfg(feature = "server")]
@@ -20,7 +20,7 @@ fn main() {
                 std::process::exit(2);
             });
 
-        server::launch(options.automatic_observations, options.lesson);
+        server::launch(options.automatic_observations, options.stage);
     }
 
     #[cfg(not(feature = "server"))]
@@ -28,7 +28,7 @@ fn main() {
 }
 
 #[cfg(feature = "server")]
-const LESSON_ENV: &str = "OBSERVABLE_CAFE_LESSON";
+const STAGE_ENV: &str = "OBSERVABLE_CAFE_STAGE";
 
 #[cfg(feature = "server")]
 const DISABLE_AUTOMATIC_OBSERVATIONS_ENV: &str = "OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS";
@@ -37,7 +37,7 @@ const DISABLE_AUTOMATIC_OBSERVATIONS_ENV: &str = "OBSERVABLE_CAFE_DISABLE_AUTOMA
 #[derive(Debug, PartialEq)]
 struct Options {
     automatic_observations: bool,
-    lesson: Option<lesson::Lesson>,
+    stage: Option<stage::Stage>,
 }
 
 #[cfg(feature = "server")]
@@ -51,10 +51,10 @@ impl Options {
             .map(|arg| arg.as_ref().to_string_lossy().into_owned());
         let mut options = Self {
             automatic_observations: true,
-            lesson: None,
+            stage: None,
         };
         let mut automatic_observations_set_by_cli = false;
-        let mut lesson_set_by_cli = false;
+        let mut stage_set_by_cli = false;
 
         while let Some(argument) = args.next() {
             match argument.as_str() {
@@ -62,19 +62,19 @@ impl Options {
                     options.automatic_observations = false;
                     automatic_observations_set_by_cli = true;
                 }
-                "--lesson" => {
-                    let lesson = args
+                "--stage" => {
+                    let stage = args
                         .next()
-                        .ok_or_else(|| "--lesson requires samples, labels, or types".to_owned())?;
-                    options.lesson = Some(parse_lesson(&lesson)?);
-                    lesson_set_by_cli = true;
+                        .ok_or_else(|| "--stage requires samples, labels, or types".to_owned())?;
+                    options.stage = Some(parse_stage(&stage)?);
+                    stage_set_by_cli = true;
                 }
                 _ => {}
             }
         }
 
-        if !lesson_set_by_cli && let Some(lesson) = env(LESSON_ENV) {
-            options.lesson = Some(parse_lesson(&lesson.to_string_lossy())?);
+        if !stage_set_by_cli && let Some(stage) = env(STAGE_ENV) {
+            options.stage = Some(parse_stage(&stage.to_string_lossy())?);
         }
 
         if !automatic_observations_set_by_cli
@@ -91,9 +91,9 @@ impl Options {
 }
 
 #[cfg(feature = "server")]
-fn parse_lesson(value: &str) -> Result<lesson::Lesson, String> {
-    lesson::Lesson::named(value)
-        .ok_or_else(|| format!("unknown lesson {value:?}; expected samples, labels, or types"))
+fn parse_stage(value: &str) -> Result<stage::Stage, String> {
+    stage::Stage::named(value)
+        .ok_or_else(|| format!("unknown stage {value:?}; expected samples, labels, or types"))
 }
 
 #[cfg(feature = "server")]
@@ -105,39 +105,39 @@ fn parse_env_bool(name: &str, value: &str) -> Result<bool, String> {
 
 #[cfg(all(test, feature = "server"))]
 mod tests {
-    use super::{DISABLE_AUTOMATIC_OBSERVATIONS_ENV, LESSON_ENV, Options};
-    use crate::lesson::Lesson;
+    use super::{DISABLE_AUTOMATIC_OBSERVATIONS_ENV, Options, STAGE_ENV};
+    use crate::stage::Stage;
 
     #[test]
-    fn options_use_the_multi_lesson_version_by_default() {
+    fn options_use_the_multi_stage_version_by_default() {
         assert_eq!(
             Options::parse(Vec::<&str>::new(), |_| None),
             Ok(Options {
                 automatic_observations: true,
-                lesson: None,
+                stage: None,
             })
         );
     }
 
     #[test]
-    fn options_can_disable_observations_and_select_a_lesson() {
+    fn options_can_disable_observations_and_select_a_stage() {
         assert_eq!(
             Options::parse(
-                ["--disable-automatic-observations", "--lesson", "labels"],
+                ["--disable-automatic-observations", "--stage", "labels"],
                 |_| None,
             ),
             Ok(Options {
                 automatic_observations: false,
-                lesson: Some(Lesson::Labels),
+                stage: Some(Stage::Labels),
             })
         );
     }
 
     #[test]
-    fn options_reject_an_unknown_lesson() {
+    fn options_reject_an_unknown_stage() {
         assert_eq!(
-            Options::parse(["--lesson", "unknown"], |_| None),
-            Err("unknown lesson \"unknown\"; expected samples, labels, or types".to_owned())
+            Options::parse(["--stage", "unknown"], |_| None),
+            Err("unknown stage \"unknown\"; expected samples, labels, or types".to_owned())
         );
     }
 
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn options_can_be_set_with_environment_variables() {
         let env = |name| match name {
-            LESSON_ENV => Some("types".into()),
+            STAGE_ENV => Some("types".into()),
             DISABLE_AUTOMATIC_OBSERVATIONS_ENV => Some("true".into()),
             _ => None,
         };
@@ -161,7 +161,7 @@ mod tests {
             Options::parse(Vec::<&str>::new(), env),
             Ok(Options {
                 automatic_observations: false,
-                lesson: Some(Lesson::Types),
+                stage: Some(Stage::Types),
             })
         );
     }
@@ -174,7 +174,7 @@ mod tests {
             Options::parse(Vec::<&str>::new(), env),
             Ok(Options {
                 automatic_observations: true,
-                lesson: None,
+                stage: None,
             })
         );
     }
@@ -194,19 +194,19 @@ mod tests {
     #[test]
     fn command_line_options_take_precedence_over_environment_variables() {
         let env = |name| match name {
-            LESSON_ENV => Some("types".into()),
+            STAGE_ENV => Some("types".into()),
             DISABLE_AUTOMATIC_OBSERVATIONS_ENV => Some("not-a-boolean".into()),
             _ => None,
         };
 
         assert_eq!(
             Options::parse(
-                ["--lesson", "samples", "--disable-automatic-observations"],
+                ["--stage", "samples", "--disable-automatic-observations"],
                 env,
             ),
             Ok(Options {
                 automatic_observations: false,
-                lesson: Some(Lesson::Samples),
+                stage: Some(Stage::Samples),
             })
         );
     }

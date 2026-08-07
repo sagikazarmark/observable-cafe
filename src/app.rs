@@ -6,9 +6,9 @@ use futures_timer::Delay;
 use crate::api;
 use crate::clock;
 use crate::components::{CoffeeMenu, Record, Thermometers, Toast, use_toaster};
-use crate::lesson::Lesson;
 use crate::menu::MENU;
 use crate::route::Route;
+use crate::stage::Stage;
 use crate::state::Snapshot;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -19,15 +19,15 @@ const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 #[component]
 pub fn App() -> Element {
-    let single_lesson = use_server_cached(|| {
+    let single_stage = use_server_cached(|| {
         #[cfg(feature = "server")]
         {
-            crate::server::single_lesson()
+            crate::server::single_stage()
         }
 
         #[cfg(not(feature = "server"))]
         {
-            None::<Lesson>
+            None::<Stage>
         }
     });
 
@@ -40,17 +40,17 @@ pub fn App() -> Element {
             "@font-face {{ font-family: 'Patrick Hand'; src: url('{HAND}') format('woff2'); font-weight: 400; font-display: swap; }}"
         }
 
-        if let Some(lesson) = single_lesson {
-            Cafe { lesson }
+        if let Some(stage) = single_stage {
+            Cafe { stage }
         } else {
             Router::<Route> {}
         }
     }
 }
 
-/// The café, showing as much of itself as `lesson` calls for.
+/// The café, showing as much of itself as `stage` calls for.
 #[component]
-pub fn Cafe(lesson: Lesson) -> Element {
+pub fn Cafe(stage: Stage) -> Element {
     let mut cafe = use_signal(Snapshot::new);
     let mut observe_every = use_signal(|| clock::DEFAULT_OBSERVE_EVERY);
     let toaster = use_toaster();
@@ -61,7 +61,7 @@ pub fn Cafe(lesson: Lesson) -> Element {
     // is asserted on every poll rather than sent once.
     use_future(move || async move {
         loop {
-            if let Ok(observed) = api::snapshot(lesson, observe_every()).await {
+            if let Ok(observed) = api::snapshot(stage, observe_every()).await {
                 cafe.set(observed);
             }
 
@@ -144,7 +144,7 @@ pub fn Cafe(lesson: Lesson) -> Element {
                             "s"
                         }
 
-                        // No link to /metrics here. A lesson is embedded in a
+                        // No link to /metrics here. A stage may be embedded in a
                         // course page, and pointing away from it is that page's
                         // business; the index is where the endpoint is offered.
                         button {
@@ -172,7 +172,7 @@ pub fn Cafe(lesson: Lesson) -> Element {
                     }
                 }
 
-                Record { lesson, snapshot }
+                Record { stage, snapshot }
             }
         }
 

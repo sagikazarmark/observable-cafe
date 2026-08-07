@@ -2,25 +2,25 @@
 
 ![The Observable Café](resources/screenshot.png)
 
-An interactive example for teaching metrics, meant to be embedded in a course
-one lesson at a time. A café owner sells coffee and keeps an eye on two
+An interactive example for exploring metrics, either on its own or embedded in
+a course one stage at a time. A café owner sells coffee and keeps an eye on two
 thermometers, and every so often writes down what things look like.
 
-Each lesson is the same café with one more idea in it, and has its own URL so a
+Each stage is the same café with one more idea in it, and has its own URL so a
 course page can embed whichever it is currently explaining. They are named after
-what they teach rather than numbered, so another can be slotted in anywhere.
+what they introduce rather than numbered, so another can be slotted in anywhere.
 
-| Lesson     | What it teaches                                                    |
+| Stage      | What it introduces                                                 |
 | ---------- | ------------------------------------------------------------------ |
 | `/samples` | A record is made of samples. What happens between them is not kept. |
 | `/labels`  | A measurement can be broken down by a dimension — here, the drink.  |
 | `/types`   | A counter and a gauge are different kinds of number.                |
 
-`/` is an index listing the three lessons and linking to the scrape endpoint;
+`/` is an index listing the three stages and linking to the scrape endpoint;
 anything unrecognised lands there too. The index is the only place the app
-offers `/metrics`: a lesson is embedded in a course page, and pointing away from
-that page is the course's business rather than the widget's. A lesson that wants
-the endpoint alongside it should link or embed it itself.
+offers `/metrics`: a stage may be embedded in a course page, and pointing away
+from that page is the host's business rather than the widget's. A page that wants
+the endpoint alongside a stage should link or embed it itself.
 
 ## How it is meant to be read
 
@@ -32,20 +32,20 @@ however many coffees were sold in between. That gap is the point.
 **The café runs faster than the world.** One real second is one café minute, so
 the clock in the corner sweeps through a working day in about a quarter of an
 hour, and the thermometers follow a real daily arc — cool at opening, warmest
-mid-afternoon. The temperatures also follow the calendar, so a lesson taken in
-January is a colder day than one taken in July.
+mid-afternoon. The temperatures also follow the calendar, so a stage opened in
+January is a colder day than one opened in July.
 
-**The clock does not start until a lesson is opened.** A server nobody has
+**The clock does not start until a stage is opened.** A server nobody has
 visited sits at 08:00 with an empty notebook, so the first thing a learner sees
 is the café opening rather than however many hours it drifted through while the
 process happened to be running. Scraping `/metrics` does not start it either: a
 scrape is an observer, not a visitor.
 
-**Opening a different lesson starts the café over**; reloading the one already
-showing does not. Each lesson is meant to be arrived at from opening time, but a
+**Opening a different stage starts the café over**; reloading the one already
+showing does not. Each stage is meant to be arrived at from opening time, but a
 learner who refreshes should not lose the coffees they just bought. The page
-sends the lesson along with every poll, and the café rebuilds itself only when
-that lesson changes.
+sends the stage along with every poll, and the café rebuilds itself only when
+that stage changes.
 
 **The thermometers move every five to ten seconds, and the notebook catches
 only some of it.** A rise and fall that happens between two entries leaves no
@@ -57,7 +57,7 @@ movements fell into the same blind spot every time.
 **How often the café is written down is the reader's to choose.** The box in the
 bar takes anything from 5 to 30 seconds and starts at 7; anything outside that
 snaps back, on the page and again at the café, which does not trust a number
-that arrived over the wire. Widening it is the lesson: the café goes on moving
+that arrived over the wire. Widening it is the point: the café goes on moving
 at exactly the same rate, and the record simply keeps less of it. Changing it
 disturbs nothing — entries just start arriving at the new spacing, so one
 notebook holds fine-grained history above and coarse below, to be compared
@@ -78,13 +78,13 @@ stretch looking quiet instead of turning noise into a mountain range. Because
 the scale moves, each chart says underneath what it is fitted to. The
 thermometers keep their fixed printed range, as a physical instrument would.
 
-**A lesson left open runs past midnight**, so the owner rules off and heads the
+**A stage left open runs past midnight**, so the owner rules off and heads the
 new day, and the date beside the title follows the newest entry rather than
 opening day. Nights are cold, which the calendar already handles.
 
 This has nothing to do with the interval: the café clock advances a minute per
 second of being watched, so midnight always arrives sixteen minutes after the
-lesson is opened. The interval only decides how many entries span that.
+stage is opened. The interval only decides how many entries span that.
 
 **`/metrics` is a separate page, not a panel.** It is plain text, byte-identical
 to what `curl` sees, and it does not update on its own. Reloading it *is* a
@@ -98,15 +98,15 @@ numbers run ahead of the notebook's.
 dx serve
 ```
 
-Then open <http://localhost:8080> for the index, or go straight to a lesson at
+Then open <http://localhost:8080> for the index, or go straight to a stage at
 <http://localhost:8080/samples>. The scrape endpoint is at
 <http://localhost:8080/metrics>.
 
 Run `dx serve --args="--disable-automatic-observations"` to stop the server
 adding notebook entries on a timer and hide the observation controls.
 
-Run `dx serve --args="--lesson samples"` to serve only one lesson at `/`.
-The accepted lessons are `samples`, `labels`, and `types`; the other lesson
+Run `dx serve --args="--stage samples"` to serve only one stage at `/`.
+The accepted stages are `samples`, `labels`, and `types`; the other stage
 routes and the index are not registered in this mode, while `/metrics` remains.
 
 Both options can also be set with environment variables. CLI arguments take
@@ -114,7 +114,7 @@ precedence when both forms are present.
 
 ```shell
 OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS=true dx serve
-OBSERVABLE_CAFE_LESSON=samples dx serve
+OBSERVABLE_CAFE_STAGE=samples dx serve
 ```
 
 ```shell
@@ -131,8 +131,8 @@ sets them for you.
 
 | Path                       | Contents                                            |
 | -------------------------- | --------------------------------------------------- |
-| `src/route.rs`             | Where each lesson lives                             |
-| `src/lesson.rs`            | What each lesson teaches, shows and does not show   |
+| `src/route.rs`             | Where each stage lives                              |
+| `src/stage.rs`             | What each stage introduces, shows and does not show |
 | `src/app.rs`               | Root component: polling, page layout                |
 | `src/components/`          | Menu, thermometers, notebook, cards, sparkline      |
 | `src/clock.rs`             | The café's own clock, which everything reads time from |
@@ -154,7 +154,7 @@ cafe_inside_temperature_celsius      gauge
 cafe_outside_temperature_celsius     gauge
 ```
 
-There is one `/metrics`, and it is the same for every lesson: always the full
+There is one `/metrics`, and it is the same for every stage: always the full
 exposition, so it always looks like a real target.
 
 A drink nobody has ordered has no series at all, rather than a series reading
@@ -172,19 +172,19 @@ job.
 The café is a single global (`src/server.rs`), so every visitor shares one
 counter and one notebook. That is what lets a cookie-less `curl` see the same
 numbers as the page — but it also means another learner's purchases arrive as
-unexplained coffees, which undercuts `/samples`, where the lesson depends on
+unexplained coffees, which undercuts `/samples`, where the stage depends on
 being able to check that you clicked three times and one entry appeared. Scoping
-state per visitor would fix the lesson and break the `curl`; it has not been
+state per visitor would fix the stage and break the `curl`; it has not been
 decided yet.
 
-Since the café is also set up for one lesson at a time, two people reading
-different lessons at once is now worse than untidy: each of their polls switches
-the café to their own lesson, so both reset it about once a second and neither
+Since the café is also set up for one stage at a time, two people exploring
+different stages at once is now worse than untidy: each of their polls switches
+the café to their own stage, so both reset it about once a second and neither
 notebook ever fills. The observation interval is shared the same way — the last
 poll wins — so two readers who have chosen different intervals will pull the
 cadence back and forth between them. Neither is destructive, but concurrent use
 needs the state-scope question settled first. A single reader, or several
-reading the same lesson at the same interval, is fine.
+exploring the same stage at the same interval, is fine.
 
 Relatedly, the global `Mutex` and the long-lived background task rule out plain
 Cloudflare Workers. Publishing there would need Durable Objects, or a host that

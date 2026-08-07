@@ -132,7 +132,7 @@ button, input { font: inherit; }
 .ghost:hover { transform: translateY(-1px); background: white; }
 
 /* The index is the one page that is not embedded, so it scrolls normally and
-   keeps the title the lessons hand over to the course page around them. */
+   keeps the title the stages hand over to the page around them. */
 .index {
     display: flex;
     flex-direction: column;
@@ -156,9 +156,9 @@ button, input { font: inherit; }
     line-height: 1.55;
 }
 
-.lesson-list { display: grid; gap: 10px; }
+.stage-list { display: grid; gap: 10px; }
 
-.lesson-link {
+.stage-link {
     display: grid;
     grid-template-columns: 42px 1fr;
     gap: 16px;
@@ -173,13 +173,13 @@ button, input { font: inherit; }
     transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
 }
 
-.lesson-link:hover {
+.stage-link:hover {
     transform: translateY(-2px);
     border-color: rgba(111,78,55,.28);
     box-shadow: 0 14px 32px rgba(91,62,40,.13);
 }
 
-.lesson-number {
+.stage-number {
     display: grid;
     place-items: center;
     width: 42px;
@@ -192,9 +192,15 @@ button, input { font: inherit; }
     font-weight: 700;
 }
 
-.lesson-copy { display: grid; gap: 3px; }
-.lesson-title { font-weight: 800; }
-.lesson-teaches { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+.stage-copy { display: grid; gap: 3px; }
+.stage-title { font-weight: 800; }
+.stage-premise { color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.stage-explanation {
+    margin-top: 3px;
+    color: var(--coffee-dark);
+    font-size: .82rem;
+    line-height: 1.45;
+}
 
 .endpoint-link {
     display: grid;
@@ -495,7 +501,7 @@ button, input { font: inherit; }
 
 .entry-line b { font-weight: 400; color: var(--coffee-dark); }
 
-/* A lesson left open runs past midnight after sixteen minutes, so the owner
+/* A stage left open runs past midnight after sixteen minutes, so the owner
    rules off and heads the new day, as anyone keeping a logbook would. */
 .day-divider {
     display: flex;
@@ -521,7 +527,7 @@ button, input { font: inherit; }
     font-size: .92em;
 }
 
-/* The card view, which only the lesson about metric types shows. It sits on
+/* The card view, which only the stage about metric types shows. It sits on
    the same paper as the notebook so the tabs read as two views of one thing. */
 .cards {
     flex: 1;
