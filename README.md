@@ -109,6 +109,14 @@ Run `dx serve --args="--lesson samples"` to serve only one lesson at `/`.
 The accepted lessons are `samples`, `labels`, and `types`; the other lesson
 routes and the index are not registered in this mode, while `/metrics` remains.
 
+Both options can also be set with environment variables. CLI arguments take
+precedence when both forms are present.
+
+```shell
+OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS=true dx serve
+OBSERVABLE_CAFE_LESSON=samples dx serve
+```
+
 ```shell
 dx build --release   # bundles into target/dx/observable-cafe/release/web/public
 cargo clippy --no-default-features --features server
