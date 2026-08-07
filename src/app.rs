@@ -56,7 +56,7 @@ pub fn Cafe(stage: Stage) -> Element {
     let toaster = use_toaster();
 
     // The café keeps counting and measuring whether or not anybody is looking,
-    // so the page holds no state of its own — it re-reads the server's. How
+    // so the page holds no state of its own; it re-reads the server's. How
     // often it is written down is the one thing the page does decide, and it
     // is asserted on every poll rather than sent once.
     use_future(move || async move {
@@ -77,7 +77,7 @@ pub fn Cafe(stage: Stage) -> Element {
 
             // Deliberately no number. The sale has happened, but how many have
             // been sold is not something anybody knows until it is written
-            // down — saying it here would give the game away.
+            // down. Saying it here would give the game away.
             if let Some(bought) = MENU.get(drink) {
                 toaster.show(format!("{} served", bought.name));
             }

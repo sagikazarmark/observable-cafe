@@ -7,7 +7,7 @@
 //! The moment always comes from [`crate::clock`] rather than the wall clock, so
 //! that the readings agree with the times written in the notebook.
 //!
-//! The numbers describe a temperate climate — mild summers, freezing winters.
+//! The numbers describe a temperate climate: mild summers, freezing winters.
 
 use std::f64::consts::TAU;
 use std::ops::RangeInclusive;

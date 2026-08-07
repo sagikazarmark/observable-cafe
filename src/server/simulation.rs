@@ -83,7 +83,7 @@ impl Thermometer {
         let value = self.reading.value();
 
         let next = if value < *drift.start() {
-            // The day has moved on without the reading — follow it.
+            // The day has moved on without the reading, so follow it.
             value + 1
         } else if value > *drift.end() {
             value - 1

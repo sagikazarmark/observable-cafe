@@ -3,8 +3,8 @@ use chrono::Local;
 /// A small xorshift generator.
 ///
 /// The simulated readings only have to look plausible, so seeding from the
-/// clock keeps us away from platform specific entropy sources — `getrandom`
-/// needs extra build configuration on `wasm32-unknown-unknown`.
+/// clock avoids platform specific entropy sources because `getrandom` needs
+/// extra build configuration on `wasm32-unknown-unknown`.
 pub struct Rng(u64);
 
 impl Rng {

@@ -155,7 +155,7 @@ impl Gauge {
 
     /// Takes `value` as the latest reading.
     ///
-    /// Only the café moves a gauge — the browser is handed the result.
+    /// Only the café moves a gauge; the browser is handed the result.
     #[cfg(feature = "server")]
     pub fn record(&mut self, value: i32) {
         self.delta = value - self.value;

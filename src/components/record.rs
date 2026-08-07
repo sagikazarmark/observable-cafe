@@ -14,8 +14,8 @@ enum View {
 /// What the café has written down.
 ///
 /// The notebook is always here. The stage about metric types adds a second
-/// way of reading the same entries, and only then does a tab bar appear —
-/// there is nothing to switch between before that.
+/// way of reading the same entries, and only then does a tab bar appear. There
+/// is nothing to switch between before that.
 #[component]
 pub fn Record(stage: Stage, snapshot: Snapshot) -> Element {
     let view = use_signal(|| View::Notebook);

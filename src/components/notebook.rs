@@ -12,8 +12,8 @@ use crate::state::Observation;
 /// The scroll this performs itself must not be mistaken for the reader
 /// scrolling away, so the listener is muted while it runs. That mute is what
 /// stopped this following at all once before, when the panel still scrolled
-/// smoothly and the half-finished animation read as somebody scrolling up — so
-/// it stays, as the guard against anyone reintroducing smooth scrolling.
+/// smoothly and the half-finished animation read as somebody scrolling up. It
+/// therefore stays as the guard against anyone reintroducing smooth scrolling.
 const FOLLOW_NEWEST: &str = r#"
 const panel = document.getElementById("notebook-entries");
 if (panel && !panel.dataset.following) {
@@ -116,7 +116,7 @@ enum Line {
 
 impl Line {
     /// Lays observations out as they are written, ruling off wherever the café
-    /// day turns over — otherwise two entries reading `09:00` would look like
+    /// day turns over; otherwise two entries reading `09:00` would look like
     /// the same moment.
     fn from(observations: &[Observation]) -> Vec<Self> {
         let mut lines = Vec::with_capacity(observations.len());

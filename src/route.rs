@@ -68,7 +68,7 @@ fn Types() -> Element {
     }
 }
 
-/// A mistyped URL is shown the way in rather than an error page — the café is
+/// A mistyped URL is shown the way in rather than an error page. The café is
 /// still open, and the index says what there is to look at.
 #[component]
 fn Missing(segments: Vec<String>) -> Element {

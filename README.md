@@ -13,7 +13,7 @@ what they introduce rather than numbered, so another can be slotted in anywhere.
 | Stage      | What it introduces                                                 |
 | ---------- | ------------------------------------------------------------------ |
 | `/samples` | A record is made of samples. What happens between them is not kept. |
-| `/labels`  | A measurement can be broken down by a dimension — here, the drink.  |
+| `/labels`  | A measurement can be broken down by a dimension: here, the drink.   |
 | `/types`   | A counter and a gauge are different kinds of number.                |
 
 `/` is an index listing the three stages and linking to the scrape endpoint;
@@ -31,7 +31,7 @@ however many coffees were sold in between. That gap is the point.
 
 **The café runs faster than the world.** One real second is one café minute, so
 the clock in the corner sweeps through a working day in about a quarter of an
-hour, and the thermometers follow a real daily arc — cool at opening, warmest
+hour, and the thermometers follow a real daily arc: cool at opening, warmest
 mid-afternoon. The temperatures also follow the calendar, so a stage opened in
 January is a colder day than one opened in July.
 
@@ -59,20 +59,20 @@ bar takes anything from 5 to 30 seconds and starts at 7; anything outside that
 snaps back, on the page and again at the café, which does not trust a number
 that arrived over the wire. Widening it is the point: the café goes on moving
 at exactly the same rate, and the record simply keeps less of it. Changing it
-disturbs nothing — entries just start arriving at the new spacing, so one
+disturbs nothing; entries just start arriving at the new spacing, so one
 notebook holds fine-grained history above and coarse below, to be compared
 directly. At 30 seconds the notebook misses about four temperature movements per
 entry; at 5 it usually misses none.
 
 Because the café clock runs at a minute a second, the interval is legible in the
-record itself — 5 seconds gives `08:00, 08:05, 08:10`, and 30 gives `08:00,
+record itself: 5 seconds gives `08:00, 08:05, 08:10`, and 30 gives `08:00,
 08:30, 09:00`. The note under the clock says so, since otherwise a box reading
 "7s" and a notebook showing seven-minute gaps look like a contradiction.
 
 **The charts in `/types` fit their readings, not the thermometer.** Drawn
 against everything the instrument could possibly show, an ordinary afternoon
-occupies under a third of the height and a degree is worth about two pixels —
-so the café looks becalmed when it is not. Each chart therefore fits the window
+occupies under a third of the height and a degree is worth about two pixels, so
+the café looks becalmed when it is not. Each chart therefore fits the window
 it is showing, never narrower than six degrees, which keeps a genuinely quiet
 stretch looking quiet instead of turning noise into a mountain range. Because
 the scale moves, each chart says underneath what it is fitted to. The
@@ -88,7 +88,7 @@ stage is opened. The interval only decides how many entries span that.
 
 **`/metrics` is a separate page, not a panel.** It is plain text, byte-identical
 to what `curl` sees, and it does not update on its own. Reloading it *is* a
-scrape — nothing pushed those numbers anywhere; something came and asked. It
+scrape: nothing pushed those numbers anywhere; something came and asked. It
 reports the café as it stands the instant it is asked and stores nothing, so its
 numbers run ahead of the notebook's.
 
@@ -158,7 +158,7 @@ There is one `/metrics`, and it is the same for every stage: always the full
 exposition, so it always looks like a real target.
 
 A drink nobody has ordered has no series at all, rather than a series reading
-zero — a series begins when something is first observed under it, which is why
+zero; a series begins when something is first observed under it, which is why
 graphs come out with gaps in them.
 
 There is deliberately no unlabelled `cafe_coffees_sold_total` alongside the
@@ -171,7 +171,7 @@ job.
 
 The café is a single global (`src/server.rs`), so every visitor shares one
 counter and one notebook. That is what lets a cookie-less `curl` see the same
-numbers as the page — but it also means another learner's purchases arrive as
+numbers as the page, but it also means another learner's purchases arrive as
 unexplained coffees, which undercuts `/samples`, where the stage depends on
 being able to check that you clicked three times and one entry appeared. Scoping
 state per visitor would fix the stage and break the `curl`; it has not been
@@ -180,8 +180,8 @@ decided yet.
 Since the café is also set up for one stage at a time, two people exploring
 different stages at once is now worse than untidy: each of their polls switches
 the café to their own stage, so both reset it about once a second and neither
-notebook ever fills. The observation interval is shared the same way — the last
-poll wins — so two readers who have chosen different intervals will pull the
+notebook ever fills. The observation interval is shared the same way. The last
+poll wins, so two readers who have chosen different intervals will pull the
 cadence back and forth between them. Neither is destructive, but concurrent use
 needs the state-scope question settled first. A single reader, or several
 exploring the same stage at the same interval, is fine.

@@ -1,7 +1,7 @@
 //! The café itself.
 //!
 //! State lives here rather than in the browser so that every visitor sees the
-//! same counter and the same readings — and so that `/metrics` has something
+//! same counter and the same readings, and so that `/metrics` has something
 //! to report.
 
 mod metrics;
@@ -138,7 +138,7 @@ pub fn single_stage() -> Option<Stage> {
 /// first if it is not already.
 ///
 /// Opening a different stage puts the café back to opening time, because the
-/// stages are meant to be arrived at fresh — but reloading the one already
+/// stages are meant to be arrived at fresh, but reloading the one already
 /// showing leaves everything alone. Nothing else starts the clock, so it does
 /// not begin until somebody is actually looking.
 pub fn snapshot_for(stage: Stage, observe_every: u64) -> Snapshot {
@@ -187,7 +187,7 @@ pub fn reset() -> Snapshot {
 
 /// Serves the app, its server functions and the scrape endpoint.
 ///
-/// The simulation is deliberately not started here — the café stands at
+/// The simulation is deliberately not started here; the café stands at
 /// opening time until somebody opens a stage.
 pub fn launch(automatic_observations: bool, stage: Option<Stage>) -> ! {
     SINGLE_STAGE

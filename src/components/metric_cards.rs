@@ -57,7 +57,7 @@ pub fn MetricCards(snapshot: Snapshot) -> Element {
 fn TemperatureCard(name: String, gauge: Gauge, recorded: Vec<i32>, color: String) -> Element {
     let value = gauge.value();
     // The chart fits the readings rather than the thermometer's whole scale,
-    // so it has to say what it is fitted to — otherwise a wiggle could be a
+    // so it has to say what it is fitted to; otherwise a wiggle could be a
     // degree or ten and there is no way to tell them apart.
     let lowest = recorded.iter().copied().min();
     let highest = recorded.iter().copied().max();

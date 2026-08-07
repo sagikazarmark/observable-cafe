@@ -46,7 +46,7 @@ pub fn StageIndex() -> Element {
                 code { "/metrics" }
                 span {
                     "The scrape endpoint, in the format every scraper reads. The same for "
-                    "every stage, and it never updates on its own — reloading it is a scrape."
+                    "every stage, and it never updates on its own. Reloading it is a scrape."
                 }
             }
         }

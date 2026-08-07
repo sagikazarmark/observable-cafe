@@ -16,7 +16,7 @@ pub enum Stage {
     /// A record is made of samples: the owner writes things down every so
     /// often, and whatever happens in between goes unrecorded.
     Samples,
-    /// A measurement can be broken down by a dimension — here, which drink.
+    /// A measurement can be broken down by a dimension: here, which drink.
     Labels,
     /// A counter and a gauge are different kinds of number.
     Types,
@@ -52,7 +52,7 @@ impl Stage {
             Self::Samples => {
                 "A record is made of samples. Whatever happens between them is not kept."
             }
-            Self::Labels => "A measurement can be broken down by a dimension — here, which drink.",
+            Self::Labels => "A measurement can be broken down by a dimension: here, which drink.",
             Self::Types => "A counter and a gauge are different kinds of number.",
         }
     }
