@@ -1,0 +1,8 @@
+*
+!/assets/
+!/assets/**
+!/src/
+!/src/**
+!/Cargo.lock
+!/Cargo.toml
+!/Dioxus.toml
