@@ -155,6 +155,9 @@ pub fn Cafe(stage: Stage) -> Element {
                 }
 
                 div { class: "bar-actions",
+                    // Only while the café writes itself down. With the timer
+                    // off there is no cadence to pace: the notebook fills when
+                    // it is asked to and at no other time.
                     if snapshot.automatic_observations {
                         label { class: "interval",
                             "Observe every"
@@ -179,16 +182,21 @@ pub fn Cafe(stage: Stage) -> Element {
                             }
                             "s"
                         }
+                    }
 
-                        // No link to /metrics here. A stage may be embedded in a
-                        // course page, and pointing away from it is that page's
-                        // business; the index is where the endpoint is offered.
-                        button {
-                            class: "ghost",
-                            r#type: "button",
-                            onclick: note,
-                            "Observe now"
-                        }
+                    // Offered either way. Turning the timer off hands the
+                    // notebook over to whoever is reading rather than closing
+                    // it, so that a sale and the entry recording it can be put
+                    // side by side deliberately.
+                    //
+                    // No link to /metrics here. A stage may be embedded in a
+                    // course page, and pointing away from it is that page's
+                    // business; the index is where the endpoint is offered.
+                    button {
+                        class: "ghost",
+                        r#type: "button",
+                        onclick: note,
+                        "Observe now"
                     }
                     button {
                         class: "ghost",

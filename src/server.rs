@@ -239,6 +239,16 @@ mod tests {
         assert!(!cafe.snapshot().automatic_observations);
     }
 
+    /// Turning the timer off leaves the notebook to whoever is reading, rather
+    /// than closing it.
+    #[test]
+    fn an_entry_can_still_be_asked_for_by_hand() {
+        let mut cafe = Cafe::new(None, false);
+        cafe.observe();
+
+        assert_eq!(cafe.snapshot().observations.len(), 1);
+    }
+
     #[test]
     fn enabled_automatic_observations_become_due_at_the_interval() {
         let mut cafe = Cafe::new(None, true);

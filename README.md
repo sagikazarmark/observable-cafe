@@ -105,7 +105,10 @@ Then open <http://localhost:8080> for the index, or go straight to a stage at
 <http://localhost:8080/metrics>.
 
 Run `dx serve --args="--disable-automatic-observations"` to stop the server
-adding notebook entries on a timer and hide the observation controls.
+adding notebook entries on a timer. The interval box goes with the timer, since
+there is no longer a cadence to pace, but "Observe now" stays: the notebook is
+handed over to whoever is reading rather than closed, so a demonstrator can sell
+three coffees and then write the one entry that records them.
 
 Run `dx serve --args="--stage samples"` to serve only one stage at `/`.
 The accepted stages are `samples`, `labels`, and `types`; the other stage
