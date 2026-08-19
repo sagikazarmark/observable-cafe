@@ -30,6 +30,7 @@ lto = "thin"
 
 [package.metadata.dist]
 dist = true
+features = ["server"]
 
 [package.metadata.release]
 sign-commit = true
