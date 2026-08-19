@@ -30,3 +30,9 @@ lto = "thin"
 
 [package.metadata.dist]
 dist = true
+
+[package.metadata.release]
+sign-commit = true
+sign-tag = true
+tag-message = "Release {{version}}"
+tag-prefix = ""
