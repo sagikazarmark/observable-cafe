@@ -17,6 +17,13 @@ const HAND: Asset = asset!("/assets/patrick-hand.woff2");
 /// How often the page asks the server what the café looks like.
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
+/// Whether a stage shows its own way back to the index.
+///
+/// Decided by the server and handed down rather than passed from stage to
+/// stage: the router builds those, and the answer is the same for all of them.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Navigation(pub bool);
+
 #[component]
 pub fn App() -> Element {
     let single_stage = use_server_cached(|| {
@@ -30,6 +37,20 @@ pub fn App() -> Element {
             None::<Stage>
         }
     });
+
+    let navigation = use_server_cached(|| {
+        #[cfg(feature = "server")]
+        {
+            crate::server::navigation()
+        }
+
+        #[cfg(not(feature = "server"))]
+        {
+            false
+        }
+    });
+
+    use_context_provider(|| Navigation(navigation));
 
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
@@ -54,6 +75,7 @@ pub fn Cafe(stage: Stage) -> Element {
     let mut cafe = use_signal(Snapshot::new);
     let mut observe_every = use_signal(|| clock::DEFAULT_OBSERVE_EVERY);
     let toaster = use_toaster();
+    let Navigation(navigation) = use_context();
 
     // The café keeps counting and measuring whether or not anybody is looking,
     // so the page holds no state of its own; it re-reads the server's. How
@@ -111,11 +133,25 @@ pub fn Cafe(stage: Stage) -> Element {
             // No title: this is embedded in a page that already has one, and
             // the height is worth more to the notebook.
             header { class: "bar",
-                div { class: "clock-block",
-                    span { class: "clock", aria_label: "Café clock", "{snapshot.clock}" }
-                    // Without this the box and the notebook appear to
-                    // disagree: seven seconds produces a seven minute gap.
-                    span { class: "clock-note", "1 second = 1 minute" }
+                div { class: "bar-lead",
+                    // Only when the café is being explored on its own. A stage
+                    // embedded in a course page is one panel of it, and a way
+                    // out of the panel is the page's to offer.
+                    if navigation {
+                        Link {
+                            class: "back",
+                            to: Route::Index {},
+                            aria_label: "Back to the index",
+                            "Back"
+                        }
+                    }
+
+                    div { class: "clock-block",
+                        span { class: "clock", aria_label: "Café clock", "{snapshot.clock}" }
+                        // Without this the box and the notebook appear to
+                        // disagree: seven seconds produces a seven minute gap.
+                        span { class: "clock-note", "1 second = 1 minute" }
+                    }
                 }
 
                 div { class: "bar-actions",

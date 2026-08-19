@@ -20,7 +20,11 @@ fn main() {
                 std::process::exit(2);
             });
 
-        server::launch(options.automatic_observations, options.stage);
+        server::launch(
+            options.automatic_observations,
+            options.stage,
+            options.navigation,
+        );
     }
 
     #[cfg(not(feature = "server"))]
@@ -34,10 +38,19 @@ const STAGE_ENV: &str = "OBSERVABLE_CAFE_STAGE";
 const DISABLE_AUTOMATIC_OBSERVATIONS_ENV: &str = "OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS";
 
 #[cfg(feature = "server")]
+const ENABLE_NAVIGATION_ENV: &str = "OBSERVABLE_CAFE_ENABLE_NAVIGATION";
+
+#[cfg(feature = "server")]
 #[derive(Debug, PartialEq)]
 struct Options {
     automatic_observations: bool,
     stage: Option<stage::Stage>,
+    /// Whether a stage offers a way back to the index.
+    ///
+    /// Off by default, because a stage is usually embedded in a course page
+    /// that does its own navigating, and a widget pointing away from the page
+    /// around it is that page's business rather than the widget's.
+    navigation: bool,
 }
 
 #[cfg(feature = "server")]
@@ -52,9 +65,11 @@ impl Options {
         let mut options = Self {
             automatic_observations: true,
             stage: None,
+            navigation: false,
         };
         let mut automatic_observations_set_by_cli = false;
         let mut stage_set_by_cli = false;
+        let mut navigation_set_by_cli = false;
 
         while let Some(argument) = args.next() {
             match argument.as_str() {
@@ -68,6 +83,10 @@ impl Options {
                         .ok_or_else(|| "--stage requires samples, labels, or types".to_owned())?;
                     options.stage = Some(parse_stage(&stage)?);
                     stage_set_by_cli = true;
+                }
+                "--enable-navigation" => {
+                    options.navigation = true;
+                    navigation_set_by_cli = true;
                 }
                 _ => {}
             }
@@ -84,6 +103,19 @@ impl Options {
                 DISABLE_AUTOMATIC_OBSERVATIONS_ENV,
                 &disabled.to_string_lossy(),
             )?;
+        }
+
+        if !navigation_set_by_cli && let Some(enabled) = env(ENABLE_NAVIGATION_ENV) {
+            options.navigation = parse_env_bool(ENABLE_NAVIGATION_ENV, &enabled.to_string_lossy())?;
+        }
+
+        // Refused rather than quietly ignored: a single stage is served
+        // without the index, so the way back would lead nowhere.
+        if options.navigation && options.stage.is_some() {
+            return Err(
+                "navigation cannot be enabled together with a single stage, which is served without the index"
+                    .to_owned(),
+            );
         }
 
         Ok(options)
@@ -105,7 +137,7 @@ fn parse_env_bool(name: &str, value: &str) -> Result<bool, String> {
 
 #[cfg(all(test, feature = "server"))]
 mod tests {
-    use super::{DISABLE_AUTOMATIC_OBSERVATIONS_ENV, Options, STAGE_ENV};
+    use super::{DISABLE_AUTOMATIC_OBSERVATIONS_ENV, ENABLE_NAVIGATION_ENV, Options, STAGE_ENV};
     use crate::stage::Stage;
 
     #[test]
@@ -115,6 +147,7 @@ mod tests {
             Ok(Options {
                 automatic_observations: true,
                 stage: None,
+                navigation: false,
             })
         );
     }
@@ -129,7 +162,42 @@ mod tests {
             Ok(Options {
                 automatic_observations: false,
                 stage: Some(Stage::Labels),
+                navigation: false,
             })
+        );
+    }
+
+    #[test]
+    fn options_can_turn_navigation_on() {
+        assert_eq!(
+            Options::parse(["--enable-navigation"], |_| None),
+            Ok(Options {
+                automatic_observations: true,
+                stage: None,
+                navigation: true,
+            })
+        );
+
+        let env = |name| (name == ENABLE_NAVIGATION_ENV).then(|| "true".into());
+
+        assert_eq!(
+            Options::parse(Vec::<&str>::new(), env),
+            Ok(Options {
+                automatic_observations: true,
+                stage: None,
+                navigation: true,
+            })
+        );
+    }
+
+    #[test]
+    fn navigation_cannot_be_combined_with_a_single_stage() {
+        assert_eq!(
+            Options::parse(["--enable-navigation", "--stage", "labels"], |_| None),
+            Err(
+                "navigation cannot be enabled together with a single stage, which is served without the index"
+                    .to_owned()
+            )
         );
     }
 
@@ -162,6 +230,7 @@ mod tests {
             Ok(Options {
                 automatic_observations: false,
                 stage: Some(Stage::Types),
+                navigation: false,
             })
         );
     }
@@ -175,6 +244,7 @@ mod tests {
             Ok(Options {
                 automatic_observations: true,
                 stage: None,
+                navigation: false,
             })
         );
     }
@@ -207,6 +277,7 @@ mod tests {
             Ok(Options {
                 automatic_observations: false,
                 stage: Some(Stage::Samples),
+                navigation: false,
             })
         );
     }

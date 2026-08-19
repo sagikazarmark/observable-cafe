@@ -26,6 +26,7 @@ const NOTEBOOK_LIMIT: usize = 60;
 /// server is the only thing besides the reset button that clears it.
 static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(None, true)));
 static SINGLE_STAGE: OnceLock<Option<Stage>> = OnceLock::new();
+static NAVIGATION: OnceLock<bool> = OnceLock::new();
 
 struct Cafe {
     /// Whether the clock writes observations as their interval comes due.
@@ -134,6 +135,15 @@ pub fn single_stage() -> Option<Stage> {
     SINGLE_STAGE.get().copied().flatten()
 }
 
+/// Whether a stage shows its own way back to the index.
+///
+/// Off unless asked for: a stage is usually embedded in a page that navigates
+/// for itself, and the widget offering its own way out of that page would be
+/// taking a decision that belongs to the page.
+pub fn navigation() -> bool {
+    NAVIGATION.get().copied().unwrap_or(false)
+}
+
 /// Reports the café to a page showing `stage`, setting it up for that stage
 /// first if it is not already.
 ///
@@ -189,9 +199,12 @@ pub fn reset() -> Snapshot {
 ///
 /// The simulation is deliberately not started here; the café stands at
 /// opening time until somebody opens a stage.
-pub fn launch(automatic_observations: bool, stage: Option<Stage>) -> ! {
+pub fn launch(automatic_observations: bool, stage: Option<Stage>, navigation: bool) -> ! {
     SINGLE_STAGE
         .set(stage)
+        .expect("server configuration must only be set once");
+    NAVIGATION
+        .set(navigation)
         .expect("server configuration must only be set once");
     cafe().automatic_observations = automatic_observations;
 

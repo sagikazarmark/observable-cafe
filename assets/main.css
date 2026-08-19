@@ -56,6 +56,26 @@ button, input { font: inherit; }
     margin-bottom: 14px;
 }
 
+.bar-lead { display: flex; align-items: center; gap: 14px; }
+
+/* Only present when the café is explored on its own, and quieter than the
+   actions on the other side: it leaves the stage rather than doing anything
+   to it. */
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: .82rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color .16s ease;
+}
+
+.back::before { content: "←"; font-size: .95rem; }
+.back:hover { color: var(--coffee); }
+.back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
 /* The café runs faster than the world outside, so the clock is on screen;
    otherwise the times in the notebook have nothing to be read against. */
 .clock-block { display: grid; gap: 1px; }
