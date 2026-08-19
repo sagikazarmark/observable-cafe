@@ -20,7 +20,9 @@ what they introduce rather than numbered, so another can be slotted in anywhere.
 anything unrecognised lands there too. The index is the only place the app
 offers `/metrics`: a stage may be embedded in a course page, and pointing away
 from that page is the host's business rather than the widget's. A page that wants
-the endpoint alongside a stage should link or embed it itself.
+the endpoint alongside a stage should link or embed it itself. For the same
+reason a stage does not link back to the index either, unless it is asked to:
+see `--enable-navigation` below, for the café explored on its own.
 
 ## How it is meant to be read
 
@@ -109,12 +111,20 @@ Run `dx serve --args="--stage samples"` to serve only one stage at `/`.
 The accepted stages are `samples`, `labels`, and `types`; the other stage
 routes and the index are not registered in this mode, while `/metrics` remains.
 
-Both options can also be set with environment variables. CLI arguments take
-precedence when both forms are present.
+Run `dx serve --args="--enable-navigation"` to give each stage a way back to
+the index. It is off by default because a stage is usually embedded in a course
+page that navigates for itself, and a widget offering its own way out of the
+page around it is taking a decision that belongs to that page. Serving a single
+stage is refused alongside it rather than quietly ignored: the index is not
+registered in that mode, so the way back would lead nowhere.
+
+All three options can also be set with environment variables. CLI arguments
+take precedence when both forms are present.
 
 ```shell
 OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS=true dx serve
 OBSERVABLE_CAFE_STAGE=samples dx serve
+OBSERVABLE_CAFE_ENABLE_NAVIGATION=true dx serve
 ```
 
 ```shell
