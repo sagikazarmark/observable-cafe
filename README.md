@@ -24,6 +24,13 @@ the endpoint alongside a stage should link or embed it itself. For the same
 reason a stage does not link back to the index either, unless it is asked to:
 see `--enable-navigation` below, for the café explored on its own.
 
+`/version` reports which build is running, as one line of plain text. It is
+served however the café is: alongside the index, and alongside a single stage,
+since whatever is asking is checking a deployment rather than reading a stage.
+Every page carries the same string in its head as
+`<meta name="version" content="…">`, so a tab that is already open can be
+identified without going back to the server.
+
 ## How it is meant to be read
 
 **Selling a coffee changes no number on the page.** A toast confirms the sale
@@ -102,7 +109,8 @@ dx serve
 
 Then open <http://localhost:8080> for the index, or go straight to a stage at
 <http://localhost:8080/samples>. The scrape endpoint is at
-<http://localhost:8080/metrics>.
+<http://localhost:8080/metrics>, and <http://localhost:8080/version> says which
+build is answering.
 
 Run `dx serve --args="--disable-automatic-observations"` to stop the server
 adding notebook entries on a timer. The interval box goes with the timer, since
@@ -156,6 +164,7 @@ sets them for you.
 | `src/server.rs`            | The café: in-memory state and the axum router       |
 | `src/server/simulation.rs` | Readings that move on their own                     |
 | `src/server/metrics.rs`    | The `/metrics` scrape endpoint                      |
+| `src/server/version.rs`    | The `/version` endpoint                             |
 | `src/server/rng.rs`        | Seeded xorshift used to simulate readings           |
 | `assets/main.css`          | Styles                                              |
 

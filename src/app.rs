@@ -53,6 +53,10 @@ pub fn App() -> Element {
     use_context_provider(|| Navigation(navigation));
 
     rsx! {
+        // The same string `/version` reports, so a page already open can be
+        // told which build drew it without going and asking.
+        document::Meta { name: "version", content: crate::VERSION }
+
         document::Stylesheet { href: MAIN_CSS }
 
         // Declared here rather than in the stylesheet so the font resolves to

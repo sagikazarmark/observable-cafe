@@ -7,6 +7,7 @@
 mod metrics;
 mod rng;
 mod simulation;
+mod version;
 
 use std::collections::VecDeque;
 use std::sync::{LazyLock, Mutex, MutexGuard, OnceLock};
@@ -212,17 +213,27 @@ pub fn launch(automatic_observations: bool, stage: Option<Stage>, navigation: bo
         let router = if stage.is_some() {
             single_stage_router()
         } else {
-            dioxus::server::router(crate::app::App).route("/metrics", get(metrics::scrape))
+            endpoints(dioxus::server::router(crate::app::App))
         };
 
         Ok(router)
     })
 }
 
+/// The two things the café serves that are not pages.
+///
+/// Added in one place so that serving a single stage cannot quietly drop one
+/// of them: both are asked for by machines that do not know or care which
+/// stage is showing.
+fn endpoints(router: Router) -> Router {
+    router
+        .route("/metrics", get(metrics::scrape))
+        .route("/version", get(version::report))
+}
+
 /// Serves one stage at the root without installing the multi-stage fallback.
 fn single_stage_router() -> Router {
-    dioxus::server::router(crate::app::App)
-        .route("/metrics", get(metrics::scrape))
+    endpoints(dioxus::server::router(crate::app::App))
         .route("/{*path}", get(|| async { StatusCode::NOT_FOUND }))
 }
 
