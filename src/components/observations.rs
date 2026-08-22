@@ -24,7 +24,7 @@ pub fn Observations(observations: Vec<Observation>, labelled: bool, today: Strin
     rsx! {
         div { class: "observations",
             div { class: "view-header",
-                h2 { "Café observations" }
+                h2 { "Observations" }
                 div { class: "date-stamp", "{date_stamp}" }
             }
 

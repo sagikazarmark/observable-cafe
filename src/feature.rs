@@ -18,11 +18,19 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "server", derive(clap::ValueEnum))]
 #[serde(rename_all = "kebab-case")]
 pub enum Feature {
+    /// The sign the café opens with: its mark and its name, at the head of the
+    /// page.
+    ///
+    /// Nothing is kept in it and nothing is taught by it, so it is part of no
+    /// other feature and no other feature is part of it. A café embedded in a
+    /// page that already names it turns this off and gives the height back to
+    /// the record.
+    Header,
     /// The notebook itself: the book on the counter, and with it everything
     /// kept in it.
     ///
-    /// Turning this off turns off the entries, the receipts and the metrics
-    /// view together, which is the short way of asking for a café that writes
+    /// Turning this off turns off the entries, the sales and the metrics view
+    /// together, which is the short way of asking for a café that writes
     /// nothing down where anybody can see it. `/metrics` is unaffected, as it
     /// is by every feature here: it reports the café rather than the record.
     Notebook,
@@ -36,7 +44,7 @@ pub enum Feature {
     ///
     /// The other half of the sampling lesson: what the notebook is a sample
     /// *of*, so the two can be read side by side.
-    Receipts,
+    Sales,
     /// Breaking the count down by which drink it was.
     Labels,
     /// Reading the same record sorted by metric, where a number is named as a
@@ -45,12 +53,14 @@ pub enum Feature {
 }
 
 impl Feature {
-    /// Every feature, in the order the café would introduce them.
-    pub const ALL: [Self; 6] = [
+    /// Every feature: the sign the café opens with, and then the ideas, in the
+    /// order the café would introduce them.
+    pub const ALL: [Self; 7] = [
+        Self::Header,
         Self::Notebook,
         Self::Observations,
         Self::AutomaticObservations,
-        Self::Receipts,
+        Self::Sales,
         Self::Labels,
         Self::Types,
     ];
@@ -62,10 +72,11 @@ impl Feature {
     #[cfg(feature = "server")]
     pub fn name(self) -> &'static str {
         match self {
+            Self::Header => "header",
             Self::Notebook => "notebook",
             Self::Observations => "observations",
             Self::AutomaticObservations => "automatic-observations",
-            Self::Receipts => "receipts",
+            Self::Sales => "sales",
             Self::Labels => "labels",
             Self::Types => "types",
         }
@@ -78,11 +89,9 @@ impl Feature {
     /// to name each one, and goes on doing so when another is added later.
     fn part_of(self) -> Option<Self> {
         match self {
-            Self::Notebook => None,
+            Self::Header | Self::Notebook => None,
             Self::AutomaticObservations => Some(Self::Observations),
-            Self::Observations | Self::Receipts | Self::Labels | Self::Types => {
-                Some(Self::Notebook)
-            }
+            Self::Observations | Self::Sales | Self::Labels | Self::Types => Some(Self::Notebook),
         }
     }
 
@@ -100,7 +109,7 @@ impl Feature {
     /// rather than adding anything of its own, so a notebook holding nothing but
     /// labels is an empty notebook.
     fn fills_the_notebook(self) -> bool {
-        matches!(self, Self::Observations | Self::Receipts | Self::Types)
+        matches!(self, Self::Observations | Self::Sales | Self::Types)
     }
 }
 
@@ -155,6 +164,11 @@ impl Preset {
 /// what.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Features {
+    /// Whether the café's own sign is drawn at the head of the page.
+    ///
+    /// Answered on its own: nothing is kept in it, so nothing else being off
+    /// takes it down with them.
+    pub header: bool,
     /// Whether the notebook is drawn at all.
     ///
     /// False when it was turned off, and false when nothing is left to put in
@@ -163,7 +177,7 @@ pub struct Features {
     pub notebook: bool,
     pub observations: bool,
     pub automatic_observations: bool,
-    pub receipts: bool,
+    pub sales: bool,
     /// Whether counts are broken down by drink. A modifier rather than a view:
     /// on its own it puts nothing in the notebook.
     pub labels: bool,
@@ -217,13 +231,14 @@ impl Features {
         };
 
         Ok(Self {
+            header: shown(Feature::Header),
             notebook: shown(Feature::Notebook)
                 && Feature::ALL
                     .into_iter()
                     .any(|feature| feature.fills_the_notebook() && shown(feature)),
             observations: shown(Feature::Observations),
             automatic_observations: shown(Feature::AutomaticObservations),
-            receipts: shown(Feature::Receipts),
+            sales: shown(Feature::Sales),
             labels: shown(Feature::Labels),
             types: shown(Feature::Types),
         })
@@ -241,27 +256,32 @@ mod tests {
         assert_eq!(
             Features::resolve(None, &[], &[]),
             Ok(Features {
+                header: true,
                 notebook: true,
                 observations: true,
                 automatic_observations: true,
-                receipts: true,
+                sales: true,
                 labels: true,
                 types: true,
             })
         );
     }
 
-    /// The whole reason presets start from nothing: `samples` predates
-    /// receipts, and adding receipts must not put them in it.
+    /// The whole reason presets start from nothing: `samples` predates the
+    /// sales roll, and adding it must not put it in them.
     #[test]
     fn a_preset_shows_only_what_it_names() {
         assert_eq!(
             Features::resolve(Some(Preset::Samples), &[], &[]),
             Ok(Features {
+                // Named by no preset, for the same reason: `samples` predates
+                // the sign too, and an example built against it is embedded in
+                // a page that has already said where it is.
+                header: false,
                 notebook: true,
                 observations: true,
                 automatic_observations: true,
-                receipts: false,
+                sales: false,
                 labels: false,
                 types: false,
             })
@@ -279,8 +299,8 @@ mod tests {
 
     #[test]
     fn a_preset_can_be_added_to_and_taken_from() {
-        let features = Features::resolve(Some(Preset::Samples), &[Feature::Receipts], &[]).unwrap();
-        assert!(features.receipts && features.observations);
+        let features = Features::resolve(Some(Preset::Samples), &[Feature::Sales], &[]).unwrap();
+        assert!(features.sales && features.observations);
 
         let features =
             Features::resolve(Some(Preset::Types), &[], &[Feature::AutomaticObservations]).unwrap();
@@ -292,7 +312,34 @@ mod tests {
         let features = Features::resolve(None, &[], &[Feature::Labels]).unwrap();
 
         assert!(!features.labels);
-        assert!(features.observations && features.receipts && features.types);
+        assert!(features.observations && features.sales && features.types);
+    }
+
+    /// What a café embedded in a page that already names it asks for, and the
+    /// whole of what that costs it.
+    #[test]
+    fn the_sign_can_be_taken_down_without_closing_the_cafe() {
+        let features = Features::resolve(None, &[], &[Feature::Header]).unwrap();
+
+        assert!(!features.header);
+        assert_eq!(
+            Features {
+                header: true,
+                ..features
+            },
+            Features::all()
+        );
+    }
+
+    /// The sign is over the door rather than in the notebook, so neither is
+    /// held up by the other.
+    #[test]
+    fn the_sign_and_the_notebook_are_answered_apart() {
+        let signless = Features::resolve(None, &[], &[Feature::Header]).unwrap();
+        assert!(signless.notebook);
+
+        let bookless = Features::resolve(None, &[], &[Feature::Notebook]).unwrap();
+        assert!(bookless.header);
     }
 
     /// Nobody means both, so it is a mistake rather than a preference.
@@ -313,10 +360,13 @@ mod tests {
         assert_eq!(
             features,
             Features {
+                // Still standing: the sign is over the door rather than in the
+                // notebook, so closing the notebook does not take it down.
+                header: true,
                 notebook: false,
                 observations: false,
                 automatic_observations: false,
-                receipts: false,
+                sales: false,
                 labels: false,
                 types: false,
             }
@@ -352,7 +402,7 @@ mod tests {
         let features = Features::resolve(
             None,
             &[],
-            &[Feature::Observations, Feature::Receipts, Feature::Types],
+            &[Feature::Observations, Feature::Sales, Feature::Types],
         )
         .unwrap();
 
@@ -366,7 +416,7 @@ mod tests {
         let features = Features::resolve(
             None,
             &[Feature::Labels],
-            &[Feature::Observations, Feature::Receipts, Feature::Types],
+            &[Feature::Observations, Feature::Sales, Feature::Types],
         )
         .unwrap();
 
@@ -377,7 +427,7 @@ mod tests {
     /// Anything still keeping something holds the panel open.
     #[test]
     fn one_remaining_view_is_enough_to_show_the_notebook() {
-        for kept in [Feature::Observations, Feature::Receipts, Feature::Types] {
+        for kept in [Feature::Observations, Feature::Sales, Feature::Types] {
             let features = Features::resolve(Some(Preset::Samples), &[kept], &[]).unwrap();
 
             assert!(
@@ -387,8 +437,8 @@ mod tests {
             );
         }
 
-        let receipts_only =
+        let sales_only =
             Features::resolve(None, &[], &[Feature::Observations, Feature::Types]).unwrap();
-        assert!(receipts_only.notebook && receipts_only.receipts);
+        assert!(sales_only.notebook && sales_only.sales);
     }
 }

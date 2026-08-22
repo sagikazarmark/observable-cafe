@@ -58,6 +58,29 @@ button, input { font: inherit; }
 
 .bar-lead { display: flex; align-items: center; gap: 14px; }
 
+/* The sign the café opens with, kept to one line so that heading the page
+   costs the record no height. */
+.masthead { display: inline-flex; align-items: center; gap: 10px; }
+
+.masthead-mark { flex: none; width: 32px; height: 32px; }
+
+/* Painted rather than handwritten: the notebook's hand belongs to what is
+   written down, and the sign is part of the café. */
+.masthead-name {
+    color: var(--coffee-dark);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Only where there is a sign to be divided from. With the header off the clock
+   heads the bar and has nothing to its left. */
+.masthead + .clock-block {
+    padding-left: 14px;
+    border-left: 1px solid rgba(62,43,32,.12);
+}
+
 /* The café runs faster than the world outside, so the clock is on screen;
    otherwise the times in the notebook have nothing to be read against. */
 .clock-block { display: grid; gap: 1px; }
@@ -288,12 +311,13 @@ button, input { font: inherit; }
     font-size: .76rem;
 }
 
+/* No gap between the dividers and the page: they are cut from it, not stacked
+   above it. */
 .notebook-panel {
     position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    gap: 10px;
 }
 
 /* The view the tabs switch between. It exists so that the tabs have something
@@ -306,15 +330,24 @@ button, input { font: inherit; }
     flex-direction: column;
 }
 
+/* The dividers, standing up from the top edge of the page. Indented past the
+   binding, as a divider is: one rising out of the spiral would read as part of
+   it. The pull downwards puts them over the page's own edge, so that the one
+   in front has no seam beneath it. */
 .tabs {
+    position: relative;
+    z-index: 1;
     flex: none;
     display: flex;
     gap: 6px;
+    padding-left: 36px;
+    margin-bottom: -1px;
 }
 
+/* Kept closed along the bottom, so the page's top edge appears to run behind
+   the dividers that are not in front. */
 .tab {
     border: 1px solid rgba(62,43,32,.12);
-    border-bottom: none;
     border-radius: 12px 12px 0 0;
     padding: 7px 16px;
     background: rgba(255,255,255,.5);
@@ -324,7 +357,11 @@ button, input { font: inherit; }
     cursor: pointer;
 }
 
+/* The one in front is the same paper as the page it opens and is left open
+   along the bottom, so the two read as one sheet rather than as a tab resting
+   on a panel. */
 .tab.on {
+    border-bottom-color: transparent;
     background: var(--paper);
     color: var(--coffee-dark);
     box-shadow: 0 -2px 10px rgba(67,45,30,.08);
@@ -604,6 +641,9 @@ button, input { font: inherit; }
 
 @media (max-width: 560px) {
     .app { width: min(100% - 20px, 1180px); padding-top: 12px; }
+    /* The bar has a clock, an interval and two buttons to fit as well. The
+       mark alone still says whose café this is. */
+    .masthead-name { display: none; }
     .cafe-panel { padding: 15px; border-radius: 22px; }
     .coffee-grid, .thermometers { grid-template-columns: 1fr; }
     .coffee-card { min-height: 126px; }
@@ -620,7 +660,7 @@ button, input { font: inherit; }
 /* The till roll: a continuous strip of what actually happened, printed rather
    than handwritten, so it does not read as another page of the notebook. The
    two are meant to be told apart at a glance. */
-.receipts {
+.sales {
     flex: 1;
     filter: drop-shadow(0 20px 30px rgba(67,45,30,.18));
     display: flex;
@@ -642,7 +682,7 @@ button, input { font: inherit; }
     font-size: .82rem;
 }
 
-.receipt {
+.sale {
     display: grid;
     grid-template-columns: 4.4em 1fr auto;
     gap: 12px;
@@ -651,6 +691,6 @@ button, input { font: inherit; }
     border-bottom: 1px dashed rgba(111,78,55,.18);
 }
 
-.receipt-time { color: var(--coffee); }
-.receipt-drink { color: var(--ink); font-weight: 600; }
-.receipt-seq { color: var(--muted); font-size: .74rem; }
+.sale-time { color: var(--coffee); }
+.sale-drink { color: var(--ink); font-weight: 600; }
+.sale-seq { color: var(--muted); font-size: .74rem; }

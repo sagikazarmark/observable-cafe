@@ -23,9 +23,9 @@ use simulation::Thermometer;
 /// minutes at a time, which is a few minutes of anybody's attention.
 const NOTEBOOK_LIMIT: usize = 60;
 
-/// How many sales the receipts keep. The same bound for the same reason: a
+/// How many sales the roll keeps. The same bound for the same reason: a
 /// café left running all afternoon should not grow without limit.
-const RECEIPTS_LIMIT: usize = 60;
+const SALES_LIMIT: usize = 60;
 
 /// The one and only café. It lasts as long as the process does; restarting the
 /// server is the only thing besides the reset button that clears it.
@@ -57,13 +57,13 @@ struct Cafe {
     /// next, rather than producing two entries moments apart.
     last_observed: u64,
     /// How many coffees have been rung up since opening, which numbers the
-    /// receipts the same way `written` numbers the notebook.
+    /// sales the same way `written` numbers the notebook.
     rung_up: u64,
     sold: Sales,
     inside: Thermometer,
     outside: Thermometer,
     notebook: VecDeque<Observation>,
-    receipts: VecDeque<Sale>,
+    sales: VecDeque<Sale>,
 }
 
 impl Cafe {
@@ -81,7 +81,7 @@ impl Cafe {
             inside: Thermometer::inside(opening),
             outside: Thermometer::outside(opening),
             notebook: VecDeque::new(),
-            receipts: VecDeque::new(),
+            sales: VecDeque::new(),
         }
     }
 
@@ -95,7 +95,7 @@ impl Cafe {
             inside: self.inside.reading().clone(),
             outside: self.outside.reading().clone(),
             observations: self.notebook.iter().cloned().collect(),
-            receipts: self.receipts.iter().cloned().collect(),
+            sales: self.sales.iter().cloned().collect(),
         }
     }
 
@@ -120,15 +120,15 @@ impl Cafe {
         }
     }
 
-    /// Rings up one drink and writes the receipt for it.
+    /// Rings up one drink and writes it up on the roll.
     ///
-    /// The receipt is kept whether or not this café shows receipts. The sale
-    /// happened; what a page does with it is the page's business, and a café
-    /// that kept its records according to who was watching would be a poor
-    /// example of anything.
+    /// The sale is kept whether or not this café shows its sales. It happened;
+    /// what a page does with it is the page's business, and a café that kept
+    /// its records according to who was watching would be a poor example of
+    /// anything.
     fn ring_up(&mut self, drink: usize) {
         // A café cannot sell what is not on its menu. Nothing is counted and
-        // nothing is written up, so the receipts, the notebook and `/metrics`
+        // nothing is written up, so the sales, the notebook and `/metrics`
         // cannot come to disagree about how many coffees there have been.
         if !self.sold.ring_up(drink) {
             return;
@@ -137,15 +137,15 @@ impl Cafe {
         self.rung_up += 1;
 
         let now = clock::at(self.tick);
-        self.receipts.push_back(Sale::rung_up(
+        self.sales.push_back(Sale::rung_up(
             self.rung_up,
             clock::written(now),
             clock::dated(now),
             drink,
         ));
 
-        if self.receipts.len() > RECEIPTS_LIMIT {
-            self.receipts.pop_front();
+        if self.sales.len() > SALES_LIMIT {
+            self.sales.pop_front();
         }
     }
 
@@ -294,34 +294,34 @@ mod tests {
     /// The sale happened; a café that kept its records according to who was
     /// watching would be a poor example of anything.
     #[test]
-    fn sales_are_written_up_whether_or_not_receipts_are_shown() {
-        let mut cafe = cafe_showing(&[Feature::Receipts]);
+    fn sales_are_written_up_whether_or_not_they_are_shown() {
+        let mut cafe = cafe_showing(&[Feature::Sales]);
         cafe.ring_up(0);
         cafe.ring_up(2);
 
-        let receipts = cafe.snapshot().receipts;
+        let sales = cafe.snapshot().sales;
 
-        assert_eq!(receipts.len(), 2);
-        assert_eq!(receipts[0].seq, 1);
-        assert_eq!(receipts[1].drink().map(|drink| drink.key), Some("latte"));
+        assert_eq!(sales.len(), 2);
+        assert_eq!(sales[0].seq, 1);
+        assert_eq!(sales[1].drink().map(|drink| drink.key), Some("latte"));
     }
 
     /// A café left running all afternoon should not grow without limit.
     #[test]
-    fn the_receipts_keep_only_the_most_recent_sales() {
+    fn the_roll_keeps_only_the_most_recent_sales() {
         let mut cafe = cafe_showing(&[]);
-        for _ in 0..super::RECEIPTS_LIMIT + 5 {
+        for _ in 0..super::SALES_LIMIT + 5 {
             cafe.ring_up(0);
         }
 
-        let receipts = cafe.snapshot().receipts;
+        let sales = cafe.snapshot().sales;
 
-        assert_eq!(receipts.len(), super::RECEIPTS_LIMIT);
-        assert_eq!(receipts[0].seq, 6);
+        assert_eq!(sales.len(), super::SALES_LIMIT);
+        assert_eq!(sales[0].seq, 6);
     }
 
-    /// The receipts, the notebook and `/metrics` are one sale seen three ways.
-    /// A receipt the total behind it does not have would have the café lie
+    /// The sales, the notebook and `/metrics` are one sale seen three ways.
+    /// A sale the total behind it does not have would have the café lie
     /// about the very thing it is demonstrating, so an order for something the
     /// café does not sell rings up nothing at all.
     #[test]
@@ -333,14 +333,14 @@ mod tests {
         let snapshot = cafe.snapshot();
 
         assert_eq!(snapshot.sold.total(), 1);
-        assert_eq!(snapshot.receipts.len(), 1);
-        assert_eq!(snapshot.receipts[0].seq, 1);
+        assert_eq!(snapshot.sales.len(), 1);
+        assert_eq!(snapshot.sales[0].seq, 1);
     }
 
-    /// A page left open passes midnight, and a receipt reading `00:03` beside
+    /// A page left open passes midnight, and a sale reading `00:03` beside
     /// one reading `23:58` is two days rather than five minutes.
     #[test]
-    fn a_receipt_records_the_day_it_was_rung_up_on() {
+    fn a_sale_records_the_day_it_was_rung_up_on() {
         let mut cafe = cafe_showing(&[]);
         cafe.ring_up(0);
 
@@ -351,9 +351,9 @@ mod tests {
         cafe.tick = 16 * 60;
         cafe.ring_up(0);
 
-        let receipts = cafe.snapshot().receipts;
+        let sales = cafe.snapshot().sales;
 
-        assert_eq!(receipts[0].day, opening.day);
-        assert_ne!(receipts[1].day, receipts[0].day);
+        assert_eq!(sales[0].day, opening.day);
+        assert_ne!(sales[1].day, sales[0].day);
     }
 }

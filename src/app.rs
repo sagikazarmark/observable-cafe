@@ -5,7 +5,7 @@ use futures_timer::Delay;
 
 use crate::api;
 use crate::clock;
-use crate::components::{CoffeeMenu, Notebook, Thermometers, Toast, use_toaster};
+use crate::components::{CoffeeMenu, Header, Notebook, Thermometers, Toast, use_toaster};
 use crate::feature::Features;
 use crate::menu::MENU;
 use crate::state::Snapshot;
@@ -120,10 +120,15 @@ pub fn Cafe() -> Element {
 
     rsx! {
         div { class: "app",
-            // No title: this is often embedded in a page that already has one,
-            // and the height is worth more to the record.
             header { class: "bar",
                 div { class: "bar-lead",
+                    // Left out where the café is embedded in a page that has
+                    // already named it: saying so twice costs height the
+                    // record is worth more of.
+                    if features.header {
+                        Header {}
+                    }
+
                     div { class: "clock-block",
                         span { class: "clock", aria_label: "Café clock", "{snapshot.clock}" }
                         // Without this the box and the notebook appear to

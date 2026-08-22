@@ -133,9 +133,9 @@ impl Options {
 /// Reads a list of features written either as a list or as one string with
 /// commas in it.
 ///
-/// The command line takes `--enable receipts,types`, and a file has real lists
+/// The command line takes `--enable sales,types`, and a file has real lists
 /// to write them as, but an environment variable holds one string and nobody
-/// spells a list `[receipts,types]` in a shell. Accepting both is what lets one
+/// spells a list `[sales,types]` in a shell. Accepting both is what lets one
 /// spelling serve all three.
 fn listed_features<'de, D>(deserializer: D) -> Result<Vec<Feature>, D::Error>
 where
@@ -238,7 +238,7 @@ mod tests {
             let features = parse(&["--preset", "samples"]).unwrap().features;
 
             assert!(features.observations);
-            assert!(!features.labels && !features.types && !features.receipts);
+            assert!(!features.labels && !features.types && !features.sales);
 
             Ok(())
         });
@@ -251,14 +251,14 @@ mod tests {
                 "--preset",
                 "types",
                 "--enable",
-                "receipts",
+                "sales",
                 "--disable",
                 "automatic-observations",
             ])
             .unwrap()
             .features;
 
-            assert!(features.receipts && features.types);
+            assert!(features.sales && features.types);
             assert!(features.observations && !features.automatic_observations);
 
             Ok(())
@@ -303,13 +303,13 @@ mod tests {
                 DEFAULT_CONFIG_FILE,
                 r#"
                 preset = "labels"
-                enable = ["receipts"]
+                enable = ["sales"]
             "#,
             )?;
 
             let features = parse(&[]).unwrap().features;
 
-            assert!(features.labels && features.receipts);
+            assert!(features.labels && features.sales);
             assert!(!features.types);
 
             Ok(())
@@ -389,11 +389,11 @@ mod tests {
     fn settings_can_be_given_in_the_environment() {
         Jail::expect_with(|jail| {
             jail.set_env(format!("{ENV_PREFIX}PRESET"), "samples");
-            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "receipts");
+            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "sales");
 
             let features = parse(&[]).unwrap().features;
 
-            assert!(features.observations && features.receipts);
+            assert!(features.observations && features.sales);
             assert!(!features.labels && !features.types);
 
             Ok(())
@@ -406,11 +406,11 @@ mod tests {
     fn several_features_can_be_named_in_one_variable() {
         Jail::expect_with(|jail| {
             jail.set_env(format!("{ENV_PREFIX}PRESET"), "samples");
-            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "receipts, types");
+            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "sales, types");
 
             let features = parse(&[]).unwrap().features;
 
-            assert!(features.receipts && features.types);
+            assert!(features.sales && features.types);
 
             Ok(())
         });
@@ -446,11 +446,11 @@ mod tests {
         Jail::expect_with(|jail| {
             jail.set_env(format!("{ENV_PREFIX}PRESET"), "types");
 
-            let features = parse(&["--preset", "samples", "--enable", "receipts"])
+            let features = parse(&["--preset", "samples", "--enable", "sales"])
                 .unwrap()
                 .features;
 
-            assert!(features.receipts && !features.types);
+            assert!(features.sales && !features.types);
 
             Ok(())
         });
