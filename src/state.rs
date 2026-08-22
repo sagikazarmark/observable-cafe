@@ -99,6 +99,9 @@ pub struct Sale {
     pub seq: u64,
     /// The café clock when it was rung up, as `09:05`.
     pub at: String,
+    /// The café day it was rung up on. A page left open runs past midnight
+    /// after sixteen minutes, and `09:05` alone would then be two moments.
+    pub day: String,
     /// Which drink, as a position in [`MENU`], which is fixed. The name is not
     /// sent: the browser has the same menu.
     drink: usize,
@@ -110,10 +113,15 @@ impl Sale {
         MENU.get(self.drink)
     }
 
-    /// Writes up one sale, identified by the drink's position on the menu.
+    /// Writes up one sale, identified by the drink’s position on the menu.
     #[cfg(feature = "server")]
-    pub fn rung_up(seq: u64, at: String, drink: usize) -> Self {
-        Self { seq, at, drink }
+    pub fn rung_up(seq: u64, at: String, day: String, drink: usize) -> Self {
+        Self {
+            seq,
+            at,
+            day,
+            drink,
+        }
     }
 }
 
@@ -138,12 +146,21 @@ impl Sales {
         MENU.iter().zip(self.0).filter(|&(_, count)| count > 0)
     }
 
-    /// Rings up one drink, identified by its position on the menu.
+    /// Rings up one drink, identified by its position on the menu, and says
+    /// whether the café sells it.
+    ///
+    /// Answered rather than ignored so that nothing else can record a sale
+    /// this total does not have. The notebook, the receipts and `/metrics`
+    /// are one sale seen three ways, and a receipt with no total behind it
+    /// would have the café lie about the very thing it is demonstrating.
     #[cfg(feature = "server")]
-    pub fn ring_up(&mut self, drink: usize) {
-        if let Some(count) = self.0.get_mut(drink) {
-            *count += 1;
-        }
+    pub fn ring_up(&mut self, drink: usize) -> bool {
+        let Some(count) = self.0.get_mut(drink) else {
+            return false;
+        };
+
+        *count += 1;
+        true
     }
 }
 

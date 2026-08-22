@@ -127,12 +127,22 @@ impl Cafe {
     /// that kept its records according to who was watching would be a poor
     /// example of anything.
     fn ring_up(&mut self, drink: usize) {
-        self.sold.ring_up(drink);
+        // A café cannot sell what is not on its menu. Nothing is counted and
+        // nothing is written up, so the receipts, the notebook and `/metrics`
+        // cannot come to disagree about how many coffees there have been.
+        if !self.sold.ring_up(drink) {
+            return;
+        }
+
         self.rung_up += 1;
 
         let now = clock::at(self.tick);
-        self.receipts
-            .push_back(Sale::rung_up(self.rung_up, clock::written(now), drink));
+        self.receipts.push_back(Sale::rung_up(
+            self.rung_up,
+            clock::written(now),
+            clock::dated(now),
+            drink,
+        ));
 
         if self.receipts.len() > RECEIPTS_LIMIT {
             self.receipts.pop_front();
@@ -308,5 +318,42 @@ mod tests {
 
         assert_eq!(receipts.len(), super::RECEIPTS_LIMIT);
         assert_eq!(receipts[0].seq, 6);
+    }
+
+    /// The receipts, the notebook and `/metrics` are one sale seen three ways.
+    /// A receipt the total behind it does not have would have the café lie
+    /// about the very thing it is demonstrating, so an order for something the
+    /// café does not sell rings up nothing at all.
+    #[test]
+    fn a_drink_that_is_not_on_the_menu_is_not_sold() {
+        let mut cafe = cafe_showing(&[]);
+        cafe.ring_up(0);
+        cafe.ring_up(crate::menu::MENU.len());
+
+        let snapshot = cafe.snapshot();
+
+        assert_eq!(snapshot.sold.total(), 1);
+        assert_eq!(snapshot.receipts.len(), 1);
+        assert_eq!(snapshot.receipts[0].seq, 1);
+    }
+
+    /// A page left open passes midnight, and a receipt reading `00:03` beside
+    /// one reading `23:58` is two days rather than five minutes.
+    #[test]
+    fn a_receipt_records_the_day_it_was_rung_up_on() {
+        let mut cafe = cafe_showing(&[]);
+        cafe.ring_up(0);
+
+        let opening = cafe.snapshot();
+
+        // The café opens at 08:00 and a tick is a minute, so midnight is
+        // sixteen hours of café time after opening.
+        cafe.tick = 16 * 60;
+        cafe.ring_up(0);
+
+        let receipts = cafe.snapshot().receipts;
+
+        assert_eq!(receipts[0].day, opening.day);
+        assert_ne!(receipts[1].day, receipts[0].day);
     }
 }

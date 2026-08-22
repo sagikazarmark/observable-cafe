@@ -1,47 +1,8 @@
-use dioxus::document::eval;
 use dioxus::prelude::*;
 
+use crate::components::follow::use_follow_newest;
+use crate::components::ruled::Ruled;
 use crate::state::Observation;
-
-/// Keeps the entries scrolled to the newest, unless the reader has
-/// scrolled away from the bottom to look at something older.
-///
-/// Yanking the page back every five seconds would make the history unreadable,
-/// and reading the history is what the notebook is for.
-///
-/// The scroll this performs itself must not be mistaken for the reader
-/// scrolling away, so the listener is muted while it runs. That mute is what
-/// stopped this following at all once before, when the panel still scrolled
-/// smoothly and the half-finished animation read as somebody scrolling up. It
-/// therefore stays as the guard against anyone reintroducing smooth scrolling.
-const FOLLOW_NEWEST: &str = r#"
-const panel = document.getElementById("observation-entries");
-if (panel && !panel.dataset.following) {
-    panel.dataset.following = "1";
-
-    const atBottom = () => panel.scrollHeight - panel.scrollTop - panel.clientHeight < 24;
-    let following = true;
-    let ours = false;
-
-    const toBottom = () => {
-        ours = true;
-        panel.scrollTop = panel.scrollHeight;
-        // Scroll events are delivered before the next frame, so by the time
-        // this runs the mute has done its job.
-        requestAnimationFrame(() => { ours = false; });
-    };
-
-    panel.addEventListener("scroll", () => { if (!ours) following = atBottom(); });
-    new MutationObserver(() => { if (following) toBottom(); })
-        .observe(panel, { childList: true, subtree: true });
-
-    toBottom();
-
-    // An entry is not its final height until the handwriting has been applied
-    // to it, which would otherwise leave the first scroll short.
-    document.fonts.ready.then(() => { if (following) toBottom(); });
-}
-"#;
 
 /// The entries the owner writes the café down in.
 ///
@@ -55,14 +16,9 @@ pub fn Observations(observations: Vec<Observation>, labelled: bool, today: Strin
         .last()
         .map_or(today, |newest| newest.day.clone());
 
-    // Spawned rather than left to drop: the handle owns the running script.
-    use_effect(move || {
-        spawn(async move {
-            let _ = eval(FOLLOW_NEWEST).await;
-        });
-    });
+    use_follow_newest("observation-entries");
 
-    let lines = Line::from(&observations);
+    let lines = Ruled::from(&observations);
     let newest = observations.last().map(|entry| entry.seq);
 
     rsx! {
@@ -81,15 +37,15 @@ pub fn Observations(observations: Vec<Observation>, labelled: bool, today: Strin
                 } else {
                     for line in lines.iter() {
                         match line {
-                            Line::Day { day, before } => rsx! {
+                            Ruled::Day { day, before } => rsx! {
                                 div { key: "day-{before}", class: "day-divider",
                                     span { "{day}" }
                                 }
                             },
-                            Line::Entry(observation) => rsx! {
+                            Ruled::Line(observation) => rsx! {
                                 Entry {
                                     key: "{observation.seq}",
-                                    observation: observation.clone(),
+                                    observation: (*observation).clone(),
                                     labelled,
                                     fresh: Some(observation.seq) == newest,
                                 }
@@ -99,42 +55,6 @@ pub fn Observations(observations: Vec<Observation>, labelled: bool, today: Strin
                 }
             }
         }
-    }
-}
-
-/// One line of the notebook, which is usually an observation but is sometimes
-/// the owner heading a new day.
-enum Line {
-    /// A rule headed with the day, taking its identity from the entry it
-    /// introduces so that it travels down the page alongside it.
-    Day {
-        day: String,
-        before: u64,
-    },
-    Entry(Observation),
-}
-
-impl Line {
-    /// Lays observations out as they are written, ruling off wherever the café
-    /// day turns over; otherwise two entries reading `09:00` would look like
-    /// the same moment.
-    fn from(observations: &[Observation]) -> Vec<Self> {
-        let mut lines = Vec::with_capacity(observations.len());
-        let mut day: Option<&str> = None;
-
-        for observation in observations {
-            if day.is_some_and(|previous| previous != observation.day) {
-                lines.push(Self::Day {
-                    day: observation.day.clone(),
-                    before: observation.seq,
-                });
-            }
-
-            day = Some(&observation.day);
-            lines.push(Self::Entry(observation.clone()));
-        }
-
-        lines
     }
 }
 

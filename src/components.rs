@@ -1,8 +1,10 @@
 mod coffee_menu;
+mod follow;
 mod metric_cards;
 mod notebook;
 mod observations;
 mod receipts;
+mod ruled;
 mod sparkline;
 mod thermometers;
 mod toast;
