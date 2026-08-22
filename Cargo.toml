@@ -15,12 +15,19 @@ wasm-bindgen = "=0.2.126"
 futures-timer = { version = "3", features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clap = { version = "4", features = ["derive", "env"], optional = true }
+figment = { version = "0.10", features = ["env", "toml"], optional = true }
 futures-timer = "3"
 tokio = { version = "1", features = ["rt", "time"], optional = true }
 
+# `Jail` gives one test its own directory and environment without disturbing
+# the rest, which the configuration tests need and the café itself does not.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+figment = { version = "0.10", features = ["env", "toml", "test"] }
+
 [features]
 default = ["web"]
-server = ["dep:tokio", "dioxus/server"]
+server = ["dep:clap", "dep:figment", "dep:tokio", "dioxus/server"]
 web = ["dioxus/web"]
 
 # The profile that 'dist' will build with
