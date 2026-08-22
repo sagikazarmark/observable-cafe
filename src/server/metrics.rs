@@ -1,7 +1,7 @@
 //! The scrape endpoint the whole demo exists for.
 //!
 //! There is one of these, and it always looks like a real target: the same
-//! bytes whichever stage is open, and the same bytes to a browser as to
+//! bytes whatever the page is showing, and the same bytes to a browser as to
 //! `curl`. It reports the café as it stands the instant it is asked and keeps
 //! nothing, so reloading it is a scrape, and the numbers here run ahead of the
 //! ones in the notebook.

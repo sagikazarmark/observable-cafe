@@ -1,7 +1,7 @@
 //! The café's own clock.
 //!
 //! The café runs faster than the world outside it: a second at the keyboard is
-//! a minute behind the counter. A stage lasting a few minutes therefore covers
+//! a minute behind the counter. A visit lasting a few minutes therefore covers
 //! a whole working day, which gives the thermometers a morning to warm out of
 //! and an evening to cool into.
 //!

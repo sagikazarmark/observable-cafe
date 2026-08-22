@@ -1,7 +1,7 @@
 //! Where the café's settings come from.
 //!
-//! The same three settings can be given in a file, in the environment, or on
-//! the command line, because a café run by hand and a café run by a container
+//! The same settings can be given in a file, in the environment, or on the
+//! command line, because a café run by hand and a café run by a container
 //! platform are told things in different ways. All three spell them the same,
 //! and each in that order overrules the one before it when they disagree.
 
@@ -12,9 +12,10 @@ use figment::{
     Figment,
     providers::{Data, Env, Format, Serialized, Toml},
 };
-use serde::{Deserialize, Serialize};
+use serde::de::value::StrDeserializer;
+use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::stage::Stage;
+use crate::feature::{Feature, Features, Preset};
 
 /// The prefix every one of the café's environment variables carries.
 const ENV_PREFIX: &str = "OBSERVABLE_CAFE_";
@@ -58,49 +59,46 @@ struct Cli {
     #[serde(skip)]
     config: Option<PathBuf>,
 
-    /// Stop adding notebook entries on a timer
-    #[arg(long)]
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    disable_automatic_observations: bool,
-
-    /// Serve only this stage, at `/`
-    #[arg(long, value_name = "STAGE")]
+    /// Show this set of features rather than all of them
+    #[arg(long, value_name = "PRESET")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    stage: Option<Stage>,
+    preset: Option<Preset>,
 
-    /// Give each stage a way back to the index
-    #[arg(long)]
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    enable_navigation: bool,
+    /// Show this feature as well, whatever the preset says
+    #[arg(long, value_name = "FEATURE", value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    enable: Vec<Feature>,
+
+    /// Do not show this feature, whatever the preset says
+    #[arg(long, value_name = "FEATURE", value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    disable: Vec<Feature>,
 }
 
 /// The settings once every source has had its say, still worded the way they
 /// were asked for.
 ///
-/// Kept apart from [`Options`] so that the negatives the two front doors are
-/// spelled with stay at the front door: nothing further in has to remember
-/// that disabling observations means the timer is off.
+/// Kept apart from [`Options`] so that working out what a preset and two lists
+/// of exceptions add up to happens in one place, and nothing further in has to
+/// know there was a preset at all.
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct Settings {
-    disable_automatic_observations: bool,
-    stage: Option<Stage>,
-    enable_navigation: bool,
+    preset: Option<Preset>,
+    /// Each list is taken from one layer whole rather than added to across
+    /// layers: overruling a list means giving the list that replaces it, which
+    /// is the same rule the other settings follow.
+    #[serde(deserialize_with = "listed_features")]
+    enable: Vec<Feature>,
+    #[serde(deserialize_with = "listed_features")]
+    disable: Vec<Feature>,
 }
 
 /// What the café is run with.
 #[derive(Debug, PartialEq)]
 pub struct Options {
-    /// Whether the clock writes observations as their interval comes due.
-    pub automatic_observations: bool,
-    /// The only stage this process serves, or `None` for the stage index.
-    pub stage: Option<Stage>,
-    /// Whether a stage offers a way back to the index.
-    ///
-    /// Off by default, because a stage is usually embedded in a course page
-    /// that does its own navigating, and a widget pointing away from the page
-    /// around it is that page's business rather than the widget's.
-    pub navigation: bool,
+    /// What the café shows, with the preset already worked out.
+    pub features: Features,
 }
 
 impl Options {
@@ -132,6 +130,35 @@ impl Options {
     }
 }
 
+/// Reads a list of features written either as a list or as one string with
+/// commas in it.
+///
+/// The command line takes `--enable receipts,types`, and a file has real lists
+/// to write them as, but an environment variable holds one string and nobody
+/// spells a list `[receipts,types]` in a shell. Accepting both is what lets one
+/// spelling serve all three.
+fn listed_features<'de, D>(deserializer: D) -> Result<Vec<Feature>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Listed {
+        Together(String),
+        Apart(Vec<Feature>),
+    }
+
+    match Listed::deserialize(deserializer)? {
+        Listed::Apart(features) => Ok(features),
+        Listed::Together(listed) => listed
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| Feature::deserialize(StrDeserializer::new(name)))
+            .collect(),
+    }
+}
+
 /// The settings file to read, if there is one to read.
 ///
 /// A file that was asked for and is not there is an error, because the café
@@ -158,17 +185,14 @@ impl TryFrom<Settings> for Options {
     type Error = Error;
 
     fn try_from(settings: Settings) -> Result<Self, Self::Error> {
-        // Refused rather than quietly ignored: a single stage is served
-        // without the index, so the way back would lead nowhere.
-        if settings.enable_navigation && settings.stage.is_some() {
-            return Err(Box::new("navigation cannot be enabled together with a single stage, which is served without the index".into()));
-        }
+        let features = Features::resolve(settings.preset, &settings.enable, &settings.disable)
+            // Refused rather than resolved one way or the other: nobody means
+            // both, so it is a mistake to report rather than a preference.
+            .map_err(|contradicted| -> Error {
+                Box::new(format!("{} is both enabled and disabled", contradicted.name()).into())
+            })?;
 
-        Ok(Self {
-            automatic_observations: !settings.disable_automatic_observations,
-            stage: settings.stage,
-            navigation: settings.enable_navigation,
-        })
+        Ok(Self { features })
     }
 }
 
@@ -178,7 +202,7 @@ impl TryFrom<Settings> for Options {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::{CONFIG_ENV, Cli, DEFAULT_CONFIG_FILE, ENV_PREFIX, Error, Options};
-    use crate::stage::Stage;
+    use crate::feature::Features;
     use clap::Parser;
     use figment::Jail;
 
@@ -193,15 +217,14 @@ mod tests {
         Options::resolve(cli)
     }
 
+    /// What a café nobody has configured shows.
     #[test]
-    fn the_multi_stage_version_is_served_by_default() {
+    fn the_whole_cafe_is_served_by_default() {
         Jail::expect_with(|_| {
             assert_eq!(
                 parse(&[]),
                 Ok(Options {
-                    automatic_observations: true,
-                    stage: None,
-                    navigation: false,
+                    features: Features::all()
                 })
             );
 
@@ -210,70 +233,67 @@ mod tests {
     }
 
     #[test]
-    fn observations_can_be_disabled_and_a_stage_selected() {
+    fn a_preset_can_be_asked_for_on_the_command_line() {
+        Jail::expect_with(|_| {
+            let features = parse(&["--preset", "samples"]).unwrap().features;
+
+            assert!(features.observations);
+            assert!(!features.labels && !features.types && !features.receipts);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn features_can_be_added_to_and_taken_from_a_preset() {
+        Jail::expect_with(|_| {
+            let features = parse(&[
+                "--preset",
+                "types",
+                "--enable",
+                "receipts",
+                "--disable",
+                "automatic-observations",
+            ])
+            .unwrap()
+            .features;
+
+            assert!(features.receipts && features.types);
+            assert!(features.observations && !features.automatic_observations);
+
+            Ok(())
+        });
+    }
+
+    /// One flag per feature would be a long command line for a café that wants
+    /// two of them.
+    #[test]
+    fn several_features_can_be_named_at_once() {
+        Jail::expect_with(|_| {
+            let listed = parse(&["--disable", "labels,types"]).unwrap().features;
+            let repeated = parse(&["--disable", "labels", "--disable", "types"])
+                .unwrap()
+                .features;
+
+            assert_eq!(listed, repeated);
+            assert!(!listed.labels && !listed.types && listed.observations);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn a_feature_that_is_both_enabled_and_disabled_is_refused() {
         Jail::expect_with(|_| {
             assert_eq!(
-                parse(&["--disable-automatic-observations", "--stage", "labels"]),
-                Ok(Options {
-                    automatic_observations: false,
-                    stage: Some(Stage::Labels),
-                    navigation: false,
-                })
-            );
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn navigation_can_be_turned_on() {
-        Jail::expect_with(|jail| {
-            assert_eq!(
-                parse(&["--enable-navigation"]),
-                Ok(Options {
-                    automatic_observations: true,
-                    stage: None,
-                    navigation: true,
-                })
-            );
-
-            jail.set_env(format!("{ENV_PREFIX}ENABLE_NAVIGATION"), "true");
-
-            assert_eq!(
-                parse(&[]),
-                Ok(Options {
-                    automatic_observations: true,
-                    stage: None,
-                    navigation: true,
-                })
-            );
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn navigation_cannot_be_combined_with_a_single_stage() {
-        Jail::expect_with(|_| {
-            assert_eq!(
-                parse(&["--enable-navigation", "--stage", "labels"])
+                parse(&["--enable", "types", "--disable", "types"])
                     .unwrap_err()
                     .to_string(),
-                "navigation cannot be enabled together with a single stage, which is served without the index"
+                "types is both enabled and disabled"
             );
 
             Ok(())
         });
-    }
-
-    #[test]
-    fn an_unknown_stage_is_rejected() {
-        assert!(Cli::try_parse_from(["observable-cafe", "--stage", "unknown"]).is_err());
-    }
-
-    #[test]
-    fn an_unknown_argument_is_rejected() {
-        assert!(Cli::try_parse_from(["observable-cafe", "--host-wrapper-option"]).is_err());
     }
 
     #[test]
@@ -282,19 +302,15 @@ mod tests {
             jail.create_file(
                 DEFAULT_CONFIG_FILE,
                 r#"
-                stage = "types"
-                disable_automatic_observations = true
+                preset = "labels"
+                enable = ["receipts"]
             "#,
             )?;
 
-            assert_eq!(
-                parse(&[]),
-                Ok(Options {
-                    automatic_observations: false,
-                    stage: Some(Stage::Types),
-                    navigation: false,
-                })
-            );
+            let features = parse(&[]).unwrap().features;
+
+            assert!(features.labels && features.receipts);
+            assert!(!features.types);
 
             Ok(())
         });
@@ -303,17 +319,19 @@ mod tests {
     #[test]
     fn a_file_can_be_named_instead_of_the_default_one() {
         Jail::expect_with(|jail| {
-            jail.create_file(DEFAULT_CONFIG_FILE, r#"stage = "types""#)?;
-            jail.create_file("elsewhere.toml", r#"stage = "labels""#)?;
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"preset = "types""#)?;
+            jail.create_file("elsewhere.toml", r#"preset = "samples""#)?;
 
-            assert_eq!(
-                parse(&["--config", "elsewhere.toml"]).unwrap().stage,
-                Some(Stage::Labels)
+            assert!(
+                !parse(&["--config", "elsewhere.toml"])
+                    .unwrap()
+                    .features
+                    .labels
             );
 
             jail.set_env(CONFIG_ENV, "elsewhere.toml");
 
-            assert_eq!(parse(&[]).unwrap().stage, Some(Stage::Labels));
+            assert!(!parse(&[]).unwrap().features.labels);
 
             Ok(())
         });
@@ -348,7 +366,60 @@ mod tests {
     #[test]
     fn an_unknown_key_in_a_file_is_rejected() {
         Jail::expect_with(|jail| {
-            jail.create_file(DEFAULT_CONFIG_FILE, r#"stgae = "types""#)?;
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"prest = "types""#)?;
+
+            assert!(parse(&[]).is_err());
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn an_unknown_feature_in_a_file_is_rejected() {
+        Jail::expect_with(|jail| {
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"disable = ["lables"]"#)?;
+
+            assert!(parse(&[]).is_err());
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn settings_can_be_given_in_the_environment() {
+        Jail::expect_with(|jail| {
+            jail.set_env(format!("{ENV_PREFIX}PRESET"), "samples");
+            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "receipts");
+
+            let features = parse(&[]).unwrap().features;
+
+            assert!(features.observations && features.receipts);
+            assert!(!features.labels && !features.types);
+
+            Ok(())
+        });
+    }
+
+    /// A variable holds one string, and nobody spells a list `[a,b]` in a
+    /// shell, so the environment spells a list the way the command line does.
+    #[test]
+    fn several_features_can_be_named_in_one_variable() {
+        Jail::expect_with(|jail| {
+            jail.set_env(format!("{ENV_PREFIX}PRESET"), "samples");
+            jail.set_env(format!("{ENV_PREFIX}ENABLE"), "receipts, types");
+
+            let features = parse(&[]).unwrap().features;
+
+            assert!(features.receipts && features.types);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn an_unknown_environment_variable_is_rejected() {
+        Jail::expect_with(|jail| {
+            jail.set_env(format!("{ENV_PREFIX}PRSET"), "types");
 
             assert!(parse(&[]).is_err());
 
@@ -359,83 +430,12 @@ mod tests {
     #[test]
     fn the_environment_and_the_command_line_both_beat_a_file() {
         Jail::expect_with(|jail| {
-            jail.create_file(DEFAULT_CONFIG_FILE, r#"stage = "types""#)?;
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"preset = "types""#)?;
 
-            jail.set_env(format!("{ENV_PREFIX}STAGE"), "labels");
-            assert_eq!(parse(&[]).unwrap().stage, Some(Stage::Labels));
+            jail.set_env(format!("{ENV_PREFIX}PRESET"), "samples");
+            assert!(!parse(&[]).unwrap().features.labels);
 
-            assert_eq!(
-                parse(&["--stage", "samples"]).unwrap().stage,
-                Some(Stage::Samples)
-            );
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn settings_can_be_given_in_the_environment() {
-        Jail::expect_with(|jail| {
-            jail.set_env(format!("{ENV_PREFIX}STAGE"), "types");
-            jail.set_env(
-                format!("{ENV_PREFIX}DISABLE_AUTOMATIC_OBSERVATIONS"),
-                "true",
-            );
-
-            assert_eq!(
-                parse(&[]),
-                Ok(Options {
-                    automatic_observations: false,
-                    stage: Some(Stage::Types),
-                    navigation: false,
-                })
-            );
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn false_does_not_disable_automatic_observations() {
-        Jail::expect_with(|jail| {
-            jail.set_env(
-                format!("{ENV_PREFIX}DISABLE_AUTOMATIC_OBSERVATIONS"),
-                "false",
-            );
-
-            assert_eq!(
-                parse(&[]),
-                Ok(Options {
-                    automatic_observations: true,
-                    stage: None,
-                    navigation: false,
-                })
-            );
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn an_environment_variable_that_is_not_a_boolean_is_rejected() {
-        Jail::expect_with(|jail| {
-            jail.set_env(
-                format!("{ENV_PREFIX}DISABLE_AUTOMATIC_OBSERVATIONS"),
-                "sometimes",
-            );
-
-            assert!(parse(&[]).is_err());
-
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn an_unknown_environment_variable_is_rejected() {
-        Jail::expect_with(|jail| {
-            jail.set_env(format!("{ENV_PREFIX}STGAE"), "types");
-
-            assert!(parse(&[]).is_err());
+            assert!(parse(&["--preset", "labels"]).unwrap().features.labels);
 
             Ok(())
         });
@@ -444,20 +444,28 @@ mod tests {
     #[test]
     fn the_command_line_takes_precedence_over_the_environment() {
         Jail::expect_with(|jail| {
-            jail.set_env(format!("{ENV_PREFIX}STAGE"), "types");
-            jail.set_env(
-                format!("{ENV_PREFIX}DISABLE_AUTOMATIC_OBSERVATIONS"),
-                "false",
-            );
+            jail.set_env(format!("{ENV_PREFIX}PRESET"), "types");
 
-            assert_eq!(
-                parse(&["--stage", "samples", "--disable-automatic-observations"]),
-                Ok(Options {
-                    automatic_observations: false,
-                    stage: Some(Stage::Samples),
-                    navigation: false,
-                })
-            );
+            let features = parse(&["--preset", "samples", "--enable", "receipts"])
+                .unwrap()
+                .features;
+
+            assert!(features.receipts && !features.types);
+
+            Ok(())
+        });
+    }
+
+    /// A list is taken from one layer whole, so overruling one means giving
+    /// the list that replaces it rather than adding to what was there.
+    #[test]
+    fn a_list_replaces_the_one_below_it_rather_than_joining_it() {
+        Jail::expect_with(|jail| {
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"disable = ["types"]"#)?;
+
+            let features = parse(&["--disable", "labels"]).unwrap().features;
+
+            assert!(features.types && !features.labels);
 
             Ok(())
         });

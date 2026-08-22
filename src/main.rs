@@ -2,10 +2,9 @@ mod api;
 mod app;
 mod clock;
 mod components;
+mod feature;
 mod menu;
-mod route;
 mod season;
-mod stage;
 mod state;
 
 #[cfg(feature = "server")]
@@ -28,11 +27,7 @@ fn main() {
             std::process::exit(2);
         });
 
-        server::launch(
-            options.automatic_observations,
-            options.stage,
-            options.navigation,
-        );
+        server::launch(options.features);
     }
 
     #[cfg(not(feature = "server"))]

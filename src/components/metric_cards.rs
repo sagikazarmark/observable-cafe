@@ -5,8 +5,8 @@ use crate::state::{Gauge, Snapshot};
 
 /// The same café, sorted by metric rather than by moment.
 ///
-/// This is where a number is named as a counter or a gauge, so it only appears
-/// in the stage that has the words for it.
+/// This is where a number is named as a counter or a gauge, so it is shown
+/// only once the café has the words for it.
 #[component]
 pub fn MetricCards(snapshot: Snapshot) -> Element {
     let inside = snapshot.recorded(|observation| observation.inside);
@@ -72,10 +72,15 @@ fn TemperatureCard(name: String, gauge: Gauge, recorded: Vec<i32>, color: String
                 span { class: "metric-value", "{value}" }
                 span { class: "metric-unit", "°C · right now" }
             }
-            Sparkline {
-                values: recorded.clone(),
-                color,
-                label: "{name}, as written down",
+            // A café that keeps no notebook has nothing to draw a chart from:
+            // the reading above is the whole of what it knows. An empty frame
+            // would suggest a history that was never kept.
+            if !recorded.is_empty() {
+                Sparkline {
+                    values: recorded.clone(),
+                    color,
+                    label: "{name}, as written down",
+                }
             }
             if let (Some(lowest), Some(highest)) = (lowest, highest) {
                 div { class: "chart-range",
