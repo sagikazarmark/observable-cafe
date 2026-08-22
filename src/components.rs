@@ -1,19 +1,21 @@
 mod coffee_menu;
 mod follow;
+mod header;
 mod metric_cards;
 mod notebook;
 mod observations;
-mod receipts;
 mod ruled;
+mod sales;
 mod sparkline;
 mod thermometers;
 mod toast;
 
 pub use coffee_menu::CoffeeMenu;
+pub use header::Header;
 pub use metric_cards::MetricCards;
 pub use notebook::Notebook;
 pub use observations::Observations;
-pub use receipts::Receipts;
+pub use sales::Sales;
 pub use sparkline::Sparkline;
 pub use thermometers::Thermometers;
 pub use toast::{Toast, use_toaster};

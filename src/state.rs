@@ -31,7 +31,7 @@ pub struct Snapshot {
     ///
     /// What `observations` is a sample of: the two are meant to be read
     /// against each other, so both travel whether or not the page shows them.
-    pub receipts: Vec<Sale>,
+    pub sales: Vec<Sale>,
 }
 
 impl Snapshot {
@@ -48,7 +48,7 @@ impl Snapshot {
             inside: Gauge::inside(opening),
             outside: Gauge::outside(opening),
             observations: Vec::new(),
-            receipts: Vec::new(),
+            sales: Vec::new(),
         }
     }
 
@@ -89,7 +89,7 @@ pub struct Observation {
 
 /// One sale, written out as it happened.
 ///
-/// A receipt is an event: it says what was sold and when, and nothing about
+/// A sale is an event: it says what was sold and when, and nothing about
 /// how many have been sold altogether. Counting is the notebook's job, and the
 /// difference between the two is why both are worth showing.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -150,8 +150,8 @@ impl Sales {
     /// whether the café sells it.
     ///
     /// Answered rather than ignored so that nothing else can record a sale
-    /// this total does not have. The notebook, the receipts and `/metrics`
-    /// are one sale seen three ways, and a receipt with no total behind it
+    /// this total does not have. The notebook, the sales and `/metrics`
+    /// are one sale seen three ways, and a sale with no total behind it
     /// would have the café lie about the very thing it is demonstrating.
     #[cfg(feature = "server")]
     pub fn ring_up(&mut self, drink: usize) -> bool {

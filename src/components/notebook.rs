@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::components::{MetricCards, Observations, Receipts};
+use crate::components::{MetricCards, Observations, Sales};
 use crate::feature::Features;
 use crate::state::Snapshot;
 
@@ -10,7 +10,7 @@ enum View {
     /// The entries the owner writes every so often.
     Observations,
     /// Every sale, as it happened.
-    Receipts,
+    Sales,
     /// The same entries sorted by metric rather than by moment.
     Metrics,
 }
@@ -20,7 +20,7 @@ impl View {
     fn label(self) -> &'static str {
         match self {
             Self::Observations => "Observations",
-            Self::Receipts => "Receipts",
+            Self::Sales => "Sales",
             Self::Metrics => "Metrics",
         }
     }
@@ -30,7 +30,7 @@ impl View {
     fn tab_id(self) -> &'static str {
         match self {
             Self::Observations => "tab-observations",
-            Self::Receipts => "tab-receipts",
+            Self::Sales => "tab-sales",
             Self::Metrics => "tab-metrics",
         }
     }
@@ -39,7 +39,7 @@ impl View {
     fn shown(features: Features) -> Vec<Self> {
         [
             (features.observations, Self::Observations),
-            (features.receipts, Self::Receipts),
+            (features.sales, Self::Sales),
             (features.types, Self::Metrics),
         ]
         .into_iter()
@@ -105,9 +105,9 @@ pub fn Notebook(snapshot: Snapshot) -> Element {
                             today: snapshot.day.clone(),
                         }
                     },
-                    Some(View::Receipts) => rsx! {
-                        Receipts {
-                            receipts: snapshot.receipts.clone(),
+                    Some(View::Sales) => rsx! {
+                        Sales {
+                            sales: snapshot.sales.clone(),
                             labelled: features.labels,
                             today: snapshot.day.clone(),
                         }

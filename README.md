@@ -15,10 +15,11 @@ chosen in the browser: a page has nothing to ask for and no way in.
 
 | Feature                  | What it adds                                                        |
 | ------------------------ | ------------------------------------------------------------------- |
+| `header`                 | The sign the café opens with: its mark and its name, left of the clock. |
 | `notebook`               | The notebook itself, and with it everything kept in it.             |
 | `observations`           | The entries: the café written down every so often, and the button that asks for one now. |
 | `automatic-observations` | The clock writing those entries as their interval comes due, and the box that paces it. |
-| `receipts`               | Every sale, written up as it happens.                               |
+| `sales`                  | Every sale, written up on the roll as it happens.                   |
 | `labels`                 | Counts broken down by which drink it was.                           |
 | `types`                  | The same entries sorted by metric, where a number is named as a counter or a gauge. |
 
@@ -38,10 +39,16 @@ None of this reaches `/metrics`. That is built from the café rather than from
 the notebook, and it reads no feature at all: a café showing no notebook still
 sells coffee, still moves its thermometers, and still publishes every series.
 
-**A notebook with nothing in it is not drawn.** Turn off observations, receipts
+**A notebook with nothing in it is not drawn.** Turn off observations, sales
 and types and it does not appear as an empty frame; the café takes the page to
 itself. That is what makes a café showing nothing but coffee and thermometers
 worth serving.
+
+Neither rule reaches the sign, which is over the door rather than in the
+notebook: a café keeping no record at all still says whose café it is. It is
+answered on its own, and `--disable header` is what a page that has already
+named the café asks for, since saying so twice costs height the record is
+worth more of.
 
 ## Presets
 
@@ -58,15 +65,17 @@ showed when it was written.
 | `types`   | The same again, with the metrics view: a counter and a gauge are different kinds of number. |
 
 These are the three stages the café used to be a ladder of, kept because a
-course page built against one of them should go on working.
+course page built against one of them should go on working. None of them names
+the sign, which arrived after all three; `--enable header` puts it back.
 
 `--enable` and `--disable` then have the last word, so an example can start
 from a preset and still differ from it in one place:
 
 ```shell
-observable-cafe --preset samples --enable receipts
+observable-cafe --preset samples --enable sales
 observable-cafe --preset types --disable automatic-observations
 observable-cafe --disable notebook
+observable-cafe --disable header       # embedded in a page that already names it
 ```
 
 Naming a feature in both is refused rather than resolved one way or the other:
@@ -95,11 +104,11 @@ sale and that is all: the counter behind the till moves, but nobody has written
 anything down yet. Seven seconds later the owner looks up and one entry
 appears, however many coffees were sold in between. That gap is the point.
 
-**The receipts are what the notebook is a sample of.** Three sales on the roll
-and one entry in the notebook is the whole idea, and it only lands if both can
-be counted, which is why they are two tabs rather than one list. The roll is
+**The sales are what the notebook is a sample of.** Three sales on the roll and
+one entry in the notebook is the whole idea, and it only lands if both can be
+counted, which is why they are two tabs rather than one list. The roll is
 printed and the notebook is handwritten so that the two are told apart at a
-glance. Without `labels` a receipt says only that a coffee was sold: the café
+glance. Without `labels` a sale says only that a coffee was sold: the café
 knows which drink it was, and this record does not keep the dimension, which is
 what a café without labels actually looks like.
 
@@ -182,9 +191,10 @@ build is answering.
 
 ```shell
 dx serve --args="--preset samples"
-dx serve --args="--preset labels --enable receipts"
+dx serve --args="--preset labels --enable sales"
 dx serve --args="--disable automatic-observations"
 dx serve --args="--disable notebook"   # coffee and thermometers only
+dx serve --args="--disable header"     # embedded in a page that already names it
 ```
 
 `--enable` and `--disable` take several features at once, separated by commas
@@ -196,7 +206,7 @@ as `[a,b]`:
 
 ```shell
 OBSERVABLE_CAFE_PRESET=samples dx serve
-OBSERVABLE_CAFE_ENABLE=receipts,types dx serve
+OBSERVABLE_CAFE_ENABLE=sales,types dx serve
 OBSERVABLE_CAFE_DISABLE=labels dx serve
 ```
 
@@ -209,7 +219,7 @@ when a setting turns out not to be what was expected.
 ```toml
 # observable-cafe.toml
 preset = "samples"
-enable = ["receipts"]
+enable = ["sales"]
 ```
 
 The three sources layer, each overruling the one before it: the file, then the
@@ -246,7 +256,7 @@ makes of it, which is where the rules above either hold or do not.
 | `src/feature.rs`           | What the café can show, and what a preset adds up to |
 | `src/config.rs`            | Where the settings come from, and how they layer    |
 | `src/app.rs`               | Root component: polling, page layout                |
-| `src/components/`          | Menu, thermometers, notebook, observations, receipts, cards |
+| `src/components/`          | Header, menu, thermometers, notebook, observations, sales, cards |
 | `src/clock.rs`             | The café's own clock, which everything reads time from |
 | `src/menu.rs`              | What the café sells, and the label values it publishes |
 | `src/state.rs`             | What the server observes and hands to the browser   |
@@ -286,7 +296,7 @@ job.
 ## Known gap
 
 The café is a single global (`src/server.rs`), so every visitor shares one
-counter, one notebook and one roll of receipts. That is what lets a cookie-less
+counter, one notebook and one roll of sales. That is what lets a cookie-less
 `curl` see the same numbers as the page, but it also means another learner's
 purchases arrive as unexplained coffees, which undercuts the sampling lesson,
 where it matters that you can check that you clicked three times and one entry
