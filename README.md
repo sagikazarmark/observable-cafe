@@ -129,14 +129,37 @@ page around it is taking a decision that belongs to that page. Serving a single
 stage is refused alongside it rather than quietly ignored: the index is not
 registered in that mode, so the way back would lead nowhere.
 
-All three options can also be set with environment variables. CLI arguments
-take precedence when both forms are present.
+All three options can also be set with environment variables.
 
 ```shell
 OBSERVABLE_CAFE_DISABLE_AUTOMATIC_OBSERVATIONS=true dx serve
 OBSERVABLE_CAFE_STAGE=samples dx serve
 OBSERVABLE_CAFE_ENABLE_NAVIGATION=true dx serve
 ```
+
+Or in a settings file, which saves repeating them for a café that is run the
+same way every time. An `observable-cafe.toml` in the working directory is read
+if there is one, and `--config` or `OBSERVABLE_CAFE_CONFIG` names one somewhere
+else. Only the working directory is searched, so there is one place to look
+when a setting turns out not to be what was expected.
+
+```toml
+# observable-cafe.toml
+stage = "samples"
+disable_automatic_observations = true
+```
+
+The three sources layer, each overruling the one before it: the file, then the
+environment, then the command line. A file that was asked for by name and is
+not there is an error, since the café would otherwise run on defaults that look
+nothing like what was meant; the default file is not asked for, so a café
+without one is simply a café configured some other way, or not at all.
+
+`dx serve --args="--help"` lists the options, and `--args="--version"` says
+which build would answer without having to ask `/version` for it. Anything
+else — an unknown argument, an `OBSERVABLE_CAFE_` variable that names no
+setting, a key the file does not have — is refused rather than ignored, so a
+misspelling is not mistaken for the default.
 
 ```shell
 dx build --release   # bundles into target/dx/observable-cafe/release/web/public

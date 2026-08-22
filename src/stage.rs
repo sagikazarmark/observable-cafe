@@ -11,7 +11,12 @@ use serde::{Deserialize, Serialize};
 ///
 /// This travels to the café as well as around the browser: the café shows one
 /// stage at a time, and needs to be told which.
+///
+/// The lower-case names are the ones the command line and the environment
+/// spell, so one spelling serves for `--stage samples` and for the wire.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(clap::ValueEnum))]
+#[serde(rename_all = "lowercase")]
 pub enum Stage {
     /// A record is made of samples: the owner writes things down every so
     /// often, and whatever happens in between goes unrecorded.
@@ -25,17 +30,6 @@ pub enum Stage {
 impl Stage {
     /// Every stage, in the order they are meant to be explored.
     pub const ALL: [Self; 3] = [Self::Samples, Self::Labels, Self::Types];
-
-    /// The stage named by the CLI and its route.
-    #[cfg(feature = "server")]
-    pub fn named(name: &str) -> Option<Self> {
-        match name {
-            "samples" => Some(Self::Samples),
-            "labels" => Some(Self::Labels),
-            "types" => Some(Self::Types),
-            _ => None,
-        }
-    }
 
     /// What the stage is called on the index.
     pub fn title(self) -> &'static str {

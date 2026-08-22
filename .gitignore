@@ -17,3 +17,7 @@ target/
 # Dioxus
 /dist
 /.dioxus
+
+# A settings file left in the working directory is somebody's own café, not
+# the one this repository serves.
+/observable-cafe.toml
