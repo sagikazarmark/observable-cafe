@@ -58,24 +58,6 @@ button, input { font: inherit; }
 
 .bar-lead { display: flex; align-items: center; gap: 14px; }
 
-/* Only present when the café is explored on its own, and quieter than the
-   actions on the other side: it leaves the stage rather than doing anything
-   to it. */
-.back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--muted);
-    font-size: .82rem;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: color .16s ease;
-}
-
-.back::before { content: "←"; font-size: .95rem; }
-.back:hover { color: var(--coffee); }
-.back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-
 /* The café runs faster than the world outside, so the clock is on screen;
    otherwise the times in the notebook have nothing to be read against. */
 .clock-block { display: grid; gap: 1px; }
@@ -151,101 +133,6 @@ button, input { font: inherit; }
 
 .ghost:hover { transform: translateY(-1px); background: white; }
 
-/* The index is the one page that is not embedded, so it scrolls normally and
-   keeps the title the stages hand over to the page around them. */
-.index {
-    display: flex;
-    flex-direction: column;
-    gap: 26px;
-    width: min(680px, calc(100% - 32px));
-    margin: 0 auto;
-    padding: clamp(36px, 9vh, 88px) 0 48px;
-}
-
-.index-head h1 {
-    margin: 0;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(2rem, 5vw, 3.1rem);
-    line-height: 1;
-}
-
-.index-lede {
-    max-width: 52ch;
-    margin: 12px 0 0;
-    color: var(--muted);
-    line-height: 1.55;
-}
-
-.stage-list { display: grid; gap: 10px; }
-
-.stage-link {
-    display: grid;
-    grid-template-columns: 42px 1fr;
-    gap: 16px;
-    align-items: center;
-    padding: 16px 20px;
-    border: 1px solid rgba(74,48,30,.10);
-    border-radius: 20px;
-    background: rgba(250,246,239,.82);
-    box-shadow: 0 8px 24px rgba(91,62,40,.07);
-    color: var(--ink);
-    text-decoration: none;
-    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
-}
-
-.stage-link:hover {
-    transform: translateY(-2px);
-    border-color: rgba(111,78,55,.28);
-    box-shadow: 0 14px 32px rgba(91,62,40,.13);
-}
-
-.stage-number {
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    background: linear-gradient(145deg, #fff, #eee2d4);
-    box-shadow: inset 0 0 0 1px rgba(62,43,32,.06);
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 1.3rem;
-    font-weight: 700;
-}
-
-.stage-copy { display: grid; gap: 3px; }
-.stage-title { font-weight: 800; }
-.stage-premise { color: var(--muted); font-size: .9rem; line-height: 1.45; }
-.stage-explanation {
-    margin-top: 3px;
-    color: var(--coffee-dark);
-    font-size: .82rem;
-    line-height: 1.45;
-}
-
-.endpoint-link {
-    display: grid;
-    gap: 6px;
-    padding: 16px 20px;
-    border: 2px dashed rgba(111,78,55,.24);
-    border-radius: 20px;
-    color: var(--ink);
-    text-decoration: none;
-    transition: border-color .16s ease, background .16s ease;
-}
-
-.endpoint-link:hover {
-    border-color: rgba(111,78,55,.45);
-    background: rgba(255,255,255,.4);
-}
-
-.endpoint-link code {
-    color: var(--coffee);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-weight: 700;
-}
-
-.endpoint-link span { color: var(--muted); font-size: .88rem; line-height: 1.45; }
-
 /* Reality on the left, the record on the right. */
 .layout {
     flex: 1;
@@ -254,6 +141,13 @@ button, input { font: inherit; }
     grid-template-columns: minmax(0, .93fr) minmax(400px, 1.07fr);
     gap: 24px;
     align-items: stretch;
+}
+
+/* A café keeping no record has one panel rather than two, and it should have
+   the page rather than half of it. */
+.layout.alone {
+    grid-template-columns: minmax(0, min(560px, 100%));
+    justify-content: center;
 }
 
 .cafe-panel {
@@ -394,12 +288,22 @@ button, input { font: inherit; }
     font-size: .76rem;
 }
 
-.record {
+.notebook-panel {
     position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
     gap: 10px;
+}
+
+/* The view the tabs switch between. It exists so that the tabs have something
+   to point at, and so it must not come between the panel and the view's own
+   height: it passes the panel's stretch straight through. */
+.view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .tabs {
@@ -426,7 +330,7 @@ button, input { font: inherit; }
     box-shadow: 0 -2px 10px rgba(67,45,30,.08);
 }
 
-.notebook {
+.observations {
     flex: 1;
     filter: drop-shadow(0 20px 30px rgba(67,45,30,.18));
     position: relative;
@@ -443,7 +347,7 @@ button, input { font: inherit; }
     box-shadow: inset 0 0 0 1px rgba(85,72,57,.10);
 }
 
-.notebook::before {
+.observations::before {
     content: "";
     position: absolute;
     inset: 0 auto 0 0;
@@ -454,7 +358,7 @@ button, input { font: inherit; }
     opacity: .78;
 }
 
-.notebook-header {
+.view-header {
     flex: none;
     display: flex;
     align-items: center;
@@ -464,7 +368,7 @@ button, input { font: inherit; }
     border-bottom: 2px solid rgba(197,112,63,.24);
 }
 
-.notebook h2 {
+.view-header h2 {
     margin: 0;
     font-family: "Patrick Hand", "Bradley Hand", "Comic Sans MS", cursive;
     font-size: clamp(1.5rem, 2.6vw, 2rem);
@@ -521,7 +425,7 @@ button, input { font: inherit; }
 
 .entry-line b { font-weight: 400; color: var(--coffee-dark); }
 
-/* A stage left open runs past midnight after sixteen minutes, so the owner
+/* A page left open runs past midnight after sixteen minutes, so the owner
    rules off and heads the new day, as anyone keeping a logbook would. */
 .day-divider {
     display: flex;
@@ -547,7 +451,7 @@ button, input { font: inherit; }
     font-size: .92em;
 }
 
-/* The card view, which only the stage about metric types shows. It sits on
+/* The card view, which only a café showing metric types has. It sits on
    the same paper as the notebook so the tabs read as two views of one thing. */
 .cards {
     flex: 1;
@@ -694,8 +598,8 @@ button, input { font: inherit; }
 @media (max-width: 900px) {
     .app { height: auto; min-height: 100dvh; }
     .layout { grid-template-columns: 1fr; }
-    .record { min-height: auto; }
-    .notebook, .cards { min-height: 520px; }
+    .notebook-panel { min-height: auto; }
+    .observations, .cards { min-height: 520px; }
 }
 
 @media (max-width: 560px) {
@@ -703,8 +607,8 @@ button, input { font: inherit; }
     .cafe-panel { padding: 15px; border-radius: 22px; }
     .coffee-grid, .thermometers { grid-template-columns: 1fr; }
     .coffee-card { min-height: 126px; }
-    .notebook { padding: 20px 16px 18px 56px; }
-    .notebook-header { flex-direction: column; align-items: flex-start; }
+    .observations { padding: 20px 16px 18px 56px; }
+    .view-header { flex-direction: column; align-items: flex-start; }
     .date-stamp { align-self: flex-end; }
     .entry { grid-template-columns: 1fr; gap: 0; }
 }
@@ -712,3 +616,41 @@ button, input { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* The till roll: a continuous strip of what actually happened, printed rather
+   than handwritten, so it does not read as another page of the notebook. The
+   two are meant to be told apart at a glance. */
+.receipts {
+    flex: 1;
+    filter: drop-shadow(0 20px 30px rgba(67,45,30,.18));
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 18px;
+    padding: 20px 24px 18px;
+    background: linear-gradient(180deg, #fffdf8, #fbf6ec);
+    box-shadow: inset 0 0 0 1px rgba(85,72,57,.10);
+}
+
+.roll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .82rem;
+}
+
+.receipt {
+    display: grid;
+    grid-template-columns: 4.4em 1fr auto;
+    gap: 12px;
+    align-items: baseline;
+    padding: 7px 8px;
+    border-bottom: 1px dashed rgba(111,78,55,.18);
+}
+
+.receipt-time { color: var(--coffee); }
+.receipt-drink { color: var(--ink); font-weight: 600; }
+.receipt-seq { color: var(--muted); font-size: .74rem; }

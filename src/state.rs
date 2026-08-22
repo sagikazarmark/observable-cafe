@@ -18,8 +18,6 @@ use crate::season;
 /// `observations` is only the part somebody happened to write down.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
-    /// Whether the server will add notebook entries on its own.
-    pub automatic_observations: bool,
     /// What the café clock reads, so the page can explain why the notebook
     /// says what it says.
     pub clock: String,
@@ -29,6 +27,11 @@ pub struct Snapshot {
     pub inside: Gauge,
     pub outside: Gauge,
     pub observations: Vec<Observation>,
+    /// Every sale, in the order they were rung up.
+    ///
+    /// What `observations` is a sample of: the two are meant to be read
+    /// against each other, so both travel whether or not the page shows them.
+    pub receipts: Vec<Sale>,
 }
 
 impl Snapshot {
@@ -39,13 +42,13 @@ impl Snapshot {
         let opening = clock::opening();
 
         Self {
-            automatic_observations: true,
             clock: clock::written(opening),
             day: clock::dated(opening),
             sold: Sales::default(),
             inside: Gauge::inside(opening),
             outside: Gauge::outside(opening),
             observations: Vec::new(),
+            receipts: Vec::new(),
         }
     }
 
@@ -76,12 +79,50 @@ pub struct Observation {
     pub seq: u64,
     /// The café clock when this was written, as `09:05`.
     pub at: String,
-    /// The day it was written on. A stage left open runs past midnight after
+    /// The day it was written on. A page left open runs past midnight after
     /// sixteen minutes, and `09:05` alone would then be two different moments.
     pub day: String,
     pub sold: Sales,
     pub inside: i32,
     pub outside: i32,
+}
+
+/// One sale, written out as it happened.
+///
+/// A receipt is an event: it says what was sold and when, and nothing about
+/// how many have been sold altogether. Counting is the notebook's job, and the
+/// difference between the two is why both are worth showing.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Sale {
+    /// Which sale this is, counting from the café opening, so that one entry
+    /// can be told from the one that takes its place as the roll fills.
+    pub seq: u64,
+    /// The café clock when it was rung up, as `09:05`.
+    pub at: String,
+    /// The café day it was rung up on. A page left open runs past midnight
+    /// after sixteen minutes, and `09:05` alone would then be two moments.
+    pub day: String,
+    /// Which drink, as a position in [`MENU`], which is fixed. The name is not
+    /// sent: the browser has the same menu.
+    drink: usize,
+}
+
+impl Sale {
+    /// What was sold, if the menu still has it.
+    pub fn drink(&self) -> Option<&'static Drink> {
+        MENU.get(self.drink)
+    }
+
+    /// Writes up one sale, identified by the drink’s position on the menu.
+    #[cfg(feature = "server")]
+    pub fn rung_up(seq: u64, at: String, day: String, drink: usize) -> Self {
+        Self {
+            seq,
+            at,
+            day,
+            drink,
+        }
+    }
 }
 
 /// How many of each drink has been sold.
@@ -105,12 +146,21 @@ impl Sales {
         MENU.iter().zip(self.0).filter(|&(_, count)| count > 0)
     }
 
-    /// Rings up one drink, identified by its position on the menu.
+    /// Rings up one drink, identified by its position on the menu, and says
+    /// whether the café sells it.
+    ///
+    /// Answered rather than ignored so that nothing else can record a sale
+    /// this total does not have. The notebook, the receipts and `/metrics`
+    /// are one sale seen three ways, and a receipt with no total behind it
+    /// would have the café lie about the very thing it is demonstrating.
     #[cfg(feature = "server")]
-    pub fn ring_up(&mut self, drink: usize) {
-        if let Some(count) = self.0.get_mut(drink) {
-            *count += 1;
-        }
+    pub fn ring_up(&mut self, drink: usize) -> bool {
+        let Some(count) = self.0.get_mut(drink) else {
+            return false;
+        };
+
+        *count += 1;
+        true
     }
 }
 

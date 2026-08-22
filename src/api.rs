@@ -5,20 +5,19 @@
 
 use dioxus::prelude::*;
 
-use crate::stage::Stage;
 use crate::state::Snapshot;
 
 /// Reports the café as it stands, together with what has been written down.
 ///
-/// The stage goes along with the request because the café is set up for one
-/// at a time: asking for a different one opens it afresh, and asking for the
-/// one already showing changes nothing. This is also what starts the clock.
+/// This is also what starts the clock: the café stands at opening time until
+/// somebody is actually looking at it.
 ///
-/// `observe_every` rides along the same way, but means less: it changes how
-/// often the café is written down, not the café.
+/// `observe_every` rides along on every poll rather than being sent once,
+/// because it belongs to whoever is reading rather than to the café. It
+/// changes how often the café is written down, not the café.
 #[server]
-pub async fn snapshot(stage: Stage, observe_every: u64) -> ServerFnResult<Snapshot> {
-    Ok(crate::server::snapshot_for(stage, observe_every))
+pub async fn snapshot(observe_every: u64) -> ServerFnResult<Snapshot> {
+    Ok(crate::server::snapshot_for(observe_every))
 }
 
 /// Rings up a single coffee, identified by its position on the menu.
