@@ -50,12 +50,20 @@ pub enum Feature {
     /// Reading the same record sorted by metric, where a number is named as a
     /// counter or a gauge.
     Types,
+    /// The shelf behind the counter: beans and milk, spent by every sale and
+    /// restocked from the back room at `/admin`.
+    ///
+    /// Part of the café rather than of the notebook: a café without it brews
+    /// from nothing, as every café here did before it had a shelf. Which is
+    /// also why `/metrics` still reads no feature — a café with a shelf
+    /// publishes what is on it, and a café without one has nothing to publish.
+    Inventory,
 }
 
 impl Feature {
     /// Every feature: the sign the café opens with, and then the ideas, in the
     /// order the café would introduce them.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Header,
         Self::Notebook,
         Self::Observations,
@@ -63,6 +71,7 @@ impl Feature {
         Self::Sales,
         Self::Labels,
         Self::Types,
+        Self::Inventory,
     ];
 
     /// What this feature is spelled as, wherever it is asked for.
@@ -79,6 +88,7 @@ impl Feature {
             Self::Sales => "sales",
             Self::Labels => "labels",
             Self::Types => "types",
+            Self::Inventory => "inventory",
         }
     }
 
@@ -89,7 +99,7 @@ impl Feature {
     /// to name each one, and goes on doing so when another is added later.
     fn part_of(self) -> Option<Self> {
         match self {
-            Self::Header | Self::Notebook => None,
+            Self::Header | Self::Notebook | Self::Inventory => None,
             Self::AutomaticObservations => Some(Self::Observations),
             Self::Observations | Self::Sales | Self::Labels | Self::Types => Some(Self::Notebook),
         }
@@ -182,6 +192,12 @@ pub struct Features {
     /// on its own it puts nothing in the notebook.
     pub labels: bool,
     pub types: bool,
+    /// Whether the café keeps a shelf of ingredients, and with it the back
+    /// room at `/admin` where the shelf is restocked.
+    ///
+    /// Answered on its own, like the sign: the shelf is behind the counter
+    /// rather than in the notebook, so closing the notebook does not empty it.
+    pub inventory: bool,
 }
 
 impl Features {
@@ -241,6 +257,7 @@ impl Features {
             sales: shown(Feature::Sales),
             labels: shown(Feature::Labels),
             types: shown(Feature::Types),
+            inventory: shown(Feature::Inventory),
         })
     }
 }
@@ -263,6 +280,7 @@ mod tests {
                 sales: true,
                 labels: true,
                 types: true,
+                inventory: true,
             })
         );
     }
@@ -284,6 +302,10 @@ mod tests {
                 sales: false,
                 labels: false,
                 types: false,
+                // Named by no preset for the same reason again: all three
+                // predate the shelf, and an example built against one goes on
+                // showing the café it was built against.
+                inventory: false,
             })
         );
     }
@@ -331,6 +353,18 @@ mod tests {
         );
     }
 
+    /// The shelf is behind the counter rather than in the notebook: a café
+    /// that writes nothing down still runs out of milk, and a café keeping
+    /// no shelf still keeps its record.
+    #[test]
+    fn the_shelf_and_the_notebook_are_answered_apart() {
+        let shelfless = Features::resolve(None, &[], &[Feature::Inventory]).unwrap();
+        assert!(!shelfless.inventory && shelfless.notebook);
+
+        let bookless = Features::resolve(None, &[], &[Feature::Notebook]).unwrap();
+        assert!(bookless.inventory && !bookless.notebook);
+    }
+
     /// The sign is over the door rather than in the notebook, so neither is
     /// held up by the other.
     #[test]
@@ -369,6 +403,9 @@ mod tests {
                 sales: false,
                 labels: false,
                 types: false,
+                // Still stocked: the shelf is behind the counter rather than
+                // in the notebook, so closing the notebook does not empty it.
+                inventory: true,
             }
         );
     }

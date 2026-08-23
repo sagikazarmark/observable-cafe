@@ -16,7 +16,9 @@ use dioxus::server::axum::routing::get;
 
 use crate::clock;
 use crate::feature::Features;
-use crate::state::{Observation, Sale, Sales, Snapshot};
+use crate::inventory::{Ingredient, Inventory};
+use crate::menu::MENU;
+use crate::state::{Observation, Order, Sale, Sales, Snapshot};
 use simulation::Thermometer;
 
 /// How many observations the notebook keeps: an hour of café time, five
@@ -60,6 +62,11 @@ struct Cafe {
     /// sales the same way `written` numbers the notebook.
     rung_up: u64,
     sold: Sales,
+    /// The shelf, in a café that keeps one.
+    ///
+    /// `None` is no shelf rather than an empty one: a café without the
+    /// feature brews from nothing and can never run out.
+    inventory: Option<Inventory>,
     inside: Thermometer,
     outside: Thermometer,
     notebook: VecDeque<Observation>,
@@ -78,6 +85,7 @@ impl Cafe {
             last_observed: 0,
             rung_up: 0,
             sold: Sales::default(),
+            inventory: features.inventory.then(Inventory::full),
             inside: Thermometer::inside(opening),
             outside: Thermometer::outside(opening),
             notebook: VecDeque::new(),
@@ -96,6 +104,7 @@ impl Cafe {
             outside: self.outside.reading().clone(),
             observations: self.notebook.iter().cloned().collect(),
             sales: self.sales.iter().cloned().collect(),
+            inventory: self.inventory,
         }
     }
 
@@ -113,6 +122,7 @@ impl Cafe {
             sold: self.sold,
             inside: self.inside.reading().value(),
             outside: self.outside.reading().value(),
+            inventory: self.inventory,
         });
 
         if self.notebook.len() > NOTEBOOK_LIMIT {
@@ -120,18 +130,32 @@ impl Cafe {
         }
     }
 
-    /// Rings up one drink and writes it up on the roll.
+    /// Rings up one drink and writes it up on the roll, or refuses it and
+    /// says why.
     ///
     /// The sale is kept whether or not this café shows its sales. It happened;
     /// what a page does with it is the page's business, and a café that kept
     /// its records according to who was watching would be a poor example of
     /// anything.
-    fn ring_up(&mut self, drink: usize) {
+    fn ring_up(&mut self, drink: usize) -> Order {
         // A café cannot sell what is not on its menu. Nothing is counted and
         // nothing is written up, so the sales, the notebook and `/metrics`
         // cannot come to disagree about how many coffees there have been.
+        let Some(ordered) = MENU.get(drink) else {
+            return Order::OffMenu;
+        };
+
+        // The shelf has the first word, and refusing is all-or-nothing: a
+        // drink the shelf cannot cover is not counted, not written up, and
+        // not reported, so every record agrees no coffee was made.
+        if let Some(shelf) = &mut self.inventory
+            && let Err(short) = shelf.brew(ordered.recipe)
+        {
+            return Order::OutOf(short);
+        }
+
         if !self.sold.ring_up(drink) {
-            return;
+            return Order::OffMenu;
         }
 
         self.rung_up += 1;
@@ -147,6 +171,8 @@ impl Cafe {
         if self.sales.len() > SALES_LIMIT {
             self.sales.pop_front();
         }
+
+        Order::Served
     }
 
     /// Whether the clock owes the notebook an entry.
@@ -197,16 +223,32 @@ pub fn snapshot_for(observe_every: u64) -> Snapshot {
     cafe.snapshot()
 }
 
-/// Rings up one drink, identified by its position on the menu.
+/// Rings up one drink, identified by its position on the menu, and says what
+/// came of asking.
 ///
 /// Nothing is written in the notebook here. The sale is real the instant it
 /// happens and `/metrics` will say so, but the notebook will not hear about it
 /// until the owner next looks up.
-pub fn buy(drink: usize) -> Snapshot {
+pub fn buy(drink: usize) -> (Order, Snapshot) {
     let mut cafe = cafe();
-    cafe.ring_up(drink);
+    let order = cafe.ring_up(drink);
 
-    cafe.snapshot()
+    (order, cafe.snapshot())
+}
+
+/// Takes in one delivery of `ingredient`, and says how much of it fit.
+///
+/// A café keeping no shelf takes nothing in: the endpoint is reachable by
+/// anything that cares to call it, and conjuring a shelf for a delivery to
+/// land on would give the café stock it has nowhere to keep.
+pub fn restock(ingredient: Ingredient) -> (u32, Snapshot) {
+    let mut cafe = cafe();
+    let taken = match &mut cafe.inventory {
+        Some(shelf) => shelf.take_delivery(ingredient),
+        None => 0,
+    };
+
+    (taken, cafe.snapshot())
 }
 
 /// Writes an entry now, rather than waiting for the next one to come round.
@@ -235,7 +277,9 @@ pub fn reset() -> Snapshot {
 /// The simulation is deliberately not started here; the café stands at opening
 /// time until somebody looks at it.
 pub fn launch(features: Features) -> ! {
-    cafe().features = features;
+    // The whole café rather than just the field: whether there is a shelf
+    // behind the counter follows from what was asked for.
+    *cafe() = Cafe::new(features);
 
     dioxus::serve(move || async move {
         Ok(dioxus::server::router(crate::app::App)
@@ -250,6 +294,9 @@ pub fn launch(features: Features) -> ! {
 mod tests {
     use super::Cafe;
     use crate::feature::{Feature, Features};
+    use crate::inventory::{Ingredient, Inventory, Roast};
+    use crate::menu::MENU;
+    use crate::state::Order;
 
     fn cafe_showing(disabled: &[Feature]) -> Cafe {
         Cafe::new(Features::resolve(None, &[], disabled).expect("nothing contradicts"))
@@ -309,7 +356,9 @@ mod tests {
     /// A café left running all afternoon should not grow without limit.
     #[test]
     fn the_roll_keeps_only_the_most_recent_sales() {
-        let mut cafe = cafe_showing(&[]);
+        // Shelfless, so the roll fills before anything runs out: this test is
+        // about the roll's own limit, not the shelf's.
+        let mut cafe = cafe_showing(&[Feature::Inventory]);
         for _ in 0..super::SALES_LIMIT + 5 {
             cafe.ring_up(0);
         }
@@ -328,13 +377,170 @@ mod tests {
     fn a_drink_that_is_not_on_the_menu_is_not_sold() {
         let mut cafe = cafe_showing(&[]);
         cafe.ring_up(0);
-        cafe.ring_up(crate::menu::MENU.len());
+
+        assert_eq!(cafe.ring_up(MENU.len()), Order::OffMenu);
 
         let snapshot = cafe.snapshot();
 
         assert_eq!(snapshot.sold.total(), 1);
         assert_eq!(snapshot.sales.len(), 1);
         assert_eq!(snapshot.sales[0].seq, 1);
+    }
+
+    /// The latte's position on the menu, for the shelf tests: the drink that
+    /// spends milk fastest, so the fridge is the first thing it empties.
+    const LATTE: usize = 2;
+
+    #[test]
+    fn selling_takes_the_recipe_off_the_shelf() {
+        let mut cafe = cafe_showing(&[]);
+        let recipe = MENU[LATTE].recipe;
+
+        assert_eq!(cafe.ring_up(LATTE), Order::Served);
+
+        let shelf = cafe.snapshot().inventory.expect("this café keeps a shelf");
+
+        assert_eq!(
+            shelf.amount(Ingredient::Milk),
+            Inventory::capacity(Ingredient::Milk) - recipe.milk
+        );
+        assert_eq!(
+            shelf.amount(Ingredient::Beans(recipe.roast)),
+            Inventory::capacity(Ingredient::Beans(recipe.roast)) - recipe.beans
+        );
+    }
+
+    /// The refusal is all-or-nothing: nothing is counted, nothing goes on the
+    /// roll, and the shelf keeps what it had, so every record agrees that no
+    /// coffee was made.
+    #[test]
+    fn a_drink_the_shelf_cannot_cover_is_refused_and_counted_nowhere() {
+        let mut cafe = cafe_showing(&[]);
+
+        let fridge = Inventory::capacity(Ingredient::Milk) / MENU[LATTE].recipe.milk;
+        for _ in 0..fridge {
+            assert_eq!(cafe.ring_up(LATTE), Order::Served);
+        }
+
+        assert_eq!(cafe.ring_up(LATTE), Order::OutOf(Ingredient::Milk));
+
+        let snapshot = cafe.snapshot();
+
+        assert_eq!(snapshot.sold.total(), fridge);
+        assert_eq!(snapshot.sales.len(), fridge as usize);
+    }
+
+    /// An espresso steams no milk, so an empty fridge does not touch it: what
+    /// runs out is per drink, which is the reason the beans carry a label.
+    #[test]
+    fn an_empty_fridge_does_not_stop_the_espresso() {
+        let mut cafe = cafe_showing(&[]);
+
+        for _ in 0..Inventory::capacity(Ingredient::Milk) / MENU[LATTE].recipe.milk {
+            cafe.ring_up(LATTE);
+        }
+
+        assert_eq!(cafe.ring_up(LATTE), Order::OutOf(Ingredient::Milk));
+        assert_eq!(cafe.ring_up(0), Order::Served);
+    }
+
+    /// A café without the feature has no shelf rather than an empty one, so
+    /// it brews from nothing and can never run out.
+    #[test]
+    fn a_cafe_without_a_shelf_never_runs_out() {
+        let mut cafe = cafe_showing(&[Feature::Inventory]);
+
+        for _ in 0..200 {
+            assert_eq!(cafe.ring_up(LATTE), Order::Served);
+        }
+
+        assert_eq!(cafe.snapshot().inventory, None);
+    }
+
+    /// The shelf is written into the notebook with everything else, so the
+    /// gauge cards have a record to draw from — and only some of what the
+    /// shelf did between entries, which is the point.
+    #[test]
+    fn observations_write_down_the_shelf() {
+        let mut cafe = cafe_showing(&[]);
+        cafe.ring_up(LATTE);
+        cafe.observe();
+
+        let observed = cafe.snapshot().observations[0]
+            .inventory
+            .expect("this café keeps a shelf");
+
+        assert_eq!(
+            observed.amount(Ingredient::Milk),
+            Inventory::capacity(Ingredient::Milk) - MENU[LATTE].recipe.milk
+        );
+    }
+
+    #[test]
+    fn a_cafe_without_a_shelf_writes_none_down() {
+        let mut cafe = cafe_showing(&[Feature::Inventory]);
+        cafe.observe();
+
+        assert_eq!(cafe.snapshot().observations[0].inventory, None);
+    }
+
+    /// A delivery lands on the shelf and nowhere else: restocking is not a
+    /// sale, so the counter and the roll have nothing to say about it.
+    #[test]
+    fn a_delivery_restocks_the_shelf_without_selling_anything() {
+        let mut cafe = cafe_showing(&[]);
+        cafe.ring_up(LATTE);
+
+        let taken = match &mut cafe.inventory {
+            Some(shelf) => shelf.take_delivery(Ingredient::Milk),
+            None => unreachable!("this café keeps a shelf"),
+        };
+
+        assert_eq!(taken, MENU[LATTE].recipe.milk);
+
+        let snapshot = cafe.snapshot();
+        let shelf = snapshot.inventory.expect("this café keeps a shelf");
+
+        assert_eq!(
+            shelf.amount(Ingredient::Milk),
+            Inventory::capacity(Ingredient::Milk)
+        );
+        assert_eq!(snapshot.sold.total(), 1);
+    }
+
+    /// Emptied by lattes, refilled by a bottle: the gauge goes down and comes
+    /// back up, which is what makes it a gauge rather than a counter.
+    #[test]
+    fn a_restocked_ingredient_sells_again() {
+        let mut cafe = cafe_showing(&[]);
+
+        for _ in 0..Inventory::capacity(Ingredient::Milk) / MENU[LATTE].recipe.milk {
+            cafe.ring_up(LATTE);
+        }
+        assert_eq!(cafe.ring_up(LATTE), Order::OutOf(Ingredient::Milk));
+
+        if let Some(shelf) = &mut cafe.inventory {
+            shelf.take_delivery(Ingredient::Milk);
+        }
+
+        assert_eq!(cafe.ring_up(LATTE), Order::Served);
+    }
+
+    /// The roasts are two stocks: emptying one leaves the drinks brewed from
+    /// the other on sale, which is what the label on the gauge is for.
+    #[test]
+    fn the_roasts_run_out_separately() {
+        let mut cafe = cafe_showing(&[]);
+        let roast = MENU[0].recipe.roast;
+        assert_eq!(roast, Roast::Light);
+
+        let shelf = Inventory::capacity(Ingredient::Beans(roast)) / MENU[0].recipe.beans;
+        for _ in 0..shelf {
+            assert_eq!(cafe.ring_up(0), Order::Served);
+        }
+
+        assert_eq!(cafe.ring_up(0), Order::OutOf(Ingredient::Beans(roast)));
+        assert_eq!(cafe.ring_up(1), Order::Served);
     }
 
     /// A page left open passes midnight, and a sale reading `00:03` beside

@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::components::Sparkline;
+use crate::inventory::{Ingredient, Roast};
 use crate::state::{Gauge, Snapshot};
 
 /// The same café, sorted by metric rather than by moment.
@@ -48,6 +49,139 @@ pub fn MetricCards(snapshot: Snapshot) -> Element {
                 gauge: snapshot.outside.clone(),
                 recorded: outside,
                 color: "var(--outside)",
+            }
+
+            // Only a café keeping a shelf has these to show, and they are the
+            // other thing a gauge does: the thermometers wander, but stock
+            // falls with every sale and jumps when a delivery lands.
+            if snapshot.inventory.is_some() {
+                BeansCard { snapshot: snapshot.clone() }
+                MilkCard { snapshot: snapshot.clone() }
+            }
+        }
+    }
+}
+
+/// The beans, published as one gauge in two series: the first label this café
+/// puts on anything other than a counter.
+///
+/// Unlike the drinks above, both roasts are there from the start: a series
+/// begins when something is first observed under it, and a shelf is there to
+/// be read from the moment the café opens.
+#[component]
+fn BeansCard(snapshot: Snapshot) -> Element {
+    let Some(shelf) = snapshot.inventory else {
+        return rsx! {};
+    };
+
+    let total: u32 = Roast::ALL
+        .iter()
+        .map(|&roast| shelf.amount(Ingredient::Beans(roast)))
+        .sum();
+
+    rsx! {
+        article { class: "metric",
+            div { class: "metric-topline",
+                span { class: "metric-name", "Coffee beans" }
+                span { class: "metric-type gauge-badge", "Gauge" }
+            }
+            div { class: "metric-value-row",
+                span { class: "metric-value", "{total}" }
+                span { class: "metric-unit", "g on the shelf · right now" }
+            }
+
+            div { class: "metric-series",
+                for roast in Roast::ALL {
+                    StockSeries {
+                        key: "{roast.key()}",
+                        row: rsx! {
+                            code { "roast=\"{roast.key()}\"" }
+                            b { "{shelf.amount(Ingredient::Beans(roast))} g" }
+                        },
+                        name: "{roast.name()} beans",
+                        unit: "g",
+                        recorded: snapshot.recorded_stock(Ingredient::Beans(roast)),
+                        color: match roast {
+                            Roast::Light => "var(--light-roast)",
+                            Roast::Dark => "var(--dark-roast)",
+                        },
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The milk, kept in millilitres and published in litres: the exposition
+/// speaks base units, and the two spellings of one fridge are worth seeing
+/// side by side.
+#[component]
+fn MilkCard(snapshot: Snapshot) -> Element {
+    let Some(shelf) = snapshot.inventory else {
+        return rsx! {};
+    };
+
+    let millilitres = shelf.amount(Ingredient::Milk);
+    let litres = f64::from(millilitres) / 1000.0;
+
+    rsx! {
+        article { class: "metric",
+            div { class: "metric-topline",
+                span { class: "metric-name", "Milk" }
+                span { class: "metric-type gauge-badge", "Gauge" }
+            }
+            div { class: "metric-value-row",
+                span { class: "metric-value", "{millilitres}" }
+                span { class: "metric-unit", "ml in the fridge · right now" }
+            }
+
+            div { class: "metric-series",
+                // The exposition's own spelling of the number above: litres
+                // on the wire, millilitres in the fridge.
+                StockSeries {
+                    row: rsx! {
+                        code { "cafe_milk_litres" }
+                        b { "{litres}" }
+                    },
+                    name: "milk",
+                    unit: "ml",
+                    recorded: snapshot.recorded_stock(Ingredient::Milk),
+                    color: "var(--milk)",
+                }
+            }
+        }
+    }
+}
+
+/// One series of a stock gauge: how `/metrics` spells it, and the readings
+/// the notebook holds of it, on the same terms as the temperature charts —
+/// what was sold or delivered between two entries was never recorded.
+#[component]
+fn StockSeries(
+    row: Element,
+    name: String,
+    unit: &'static str,
+    recorded: Vec<i32>,
+    color: &'static str,
+) -> Element {
+    let lowest = recorded.iter().copied().min();
+    let highest = recorded.iter().copied().max();
+
+    rsx! {
+        div { class: "series", {row} }
+        // A café that keeps no notebook, or has not filled it yet, has
+        // nothing to draw: the amount above is the whole of what it knows.
+        if !recorded.is_empty() {
+            Sparkline {
+                values: recorded.clone(),
+                color,
+                label: "{name}, as written down",
+            }
+        }
+        if let (Some(lowest), Some(highest)) = (lowest, highest) {
+            div { class: "chart-range",
+                span { "written down: {lowest} {unit} to {highest} {unit}" }
+                span { "{recorded.len()} entries" }
             }
         }
     }

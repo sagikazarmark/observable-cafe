@@ -1,3 +1,4 @@
+mod back_room;
 mod coffee_menu;
 mod follow;
 mod header;
@@ -10,6 +11,7 @@ mod sparkline;
 mod thermometers;
 mod toast;
 
+pub use back_room::BackRoom;
 pub use coffee_menu::CoffeeMenu;
 pub use header::Header;
 pub use metric_cards::MetricCards;
