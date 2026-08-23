@@ -9,6 +9,7 @@ use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
 use crate::clock;
+use crate::inventory::{Ingredient, Inventory};
 use crate::menu::{Drink, MENU};
 use crate::season;
 
@@ -32,6 +33,11 @@ pub struct Snapshot {
     /// What `observations` is a sample of: the two are meant to be read
     /// against each other, so both travel whether or not the page shows them.
     pub sales: Vec<Sale>,
+    /// What is on the shelf, in a café that keeps one.
+    ///
+    /// `None` is not an empty shelf but no shelf at all: only a café showing
+    /// `inventory` has one, and every other café brews from nothing.
+    pub inventory: Option<Inventory>,
 }
 
 impl Snapshot {
@@ -49,6 +55,9 @@ impl Snapshot {
             outside: Gauge::outside(opening),
             observations: Vec::new(),
             sales: Vec::new(),
+            // Not yet reported rather than not kept: whether this café has a
+            // shelf is the server's to say, and it has not answered yet.
+            inventory: None,
         }
     }
 
@@ -58,6 +67,17 @@ impl Snapshot {
     /// values between observations were never recorded anywhere.
     pub fn recorded(&self, reading: fn(&Observation) -> i32) -> Vec<i32> {
         self.observations.iter().map(reading).collect()
+    }
+
+    /// The shelf readings the notebook holds for one ingredient, oldest
+    /// first, on the same honest terms as [`Snapshot::recorded`]: whatever
+    /// was sold or delivered between two entries left no trace here.
+    pub fn recorded_stock(&self, ingredient: Ingredient) -> Vec<i32> {
+        self.observations
+            .iter()
+            .filter_map(|observation| observation.inventory.as_ref())
+            .map(|shelf| i32::try_from(shelf.amount(ingredient)).unwrap_or(i32::MAX))
+            .collect()
     }
 }
 
@@ -85,6 +105,24 @@ pub struct Observation {
     pub sold: Sales,
     pub inside: i32,
     pub outside: i32,
+    /// The shelf as it stood, where there was one to write down.
+    pub inventory: Option<Inventory>,
+}
+
+/// What came of asking for a drink.
+///
+/// A café keeping a shelf can refuse a drink it cannot cover, and the page
+/// has to be able to say so; a toast that always said "served" would have the
+/// till lying about the very thing the shelf is there to demonstrate.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum Order {
+    /// Made, counted, and written up on the roll.
+    Served,
+    /// Refused: the shelf cannot cover an ingredient the drink needs.
+    /// Nothing was counted anywhere.
+    OutOf(Ingredient),
+    /// Refused: the café does not sell this. Nothing was counted anywhere.
+    OffMenu,
 }
 
 /// One sale, written out as it happened.

@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::components::follow::use_follow_newest;
 use crate::components::ruled::Ruled;
+use crate::inventory::{Ingredient, Roast};
 use crate::state::Observation;
 
 /// The entries the owner writes the café down in.
@@ -94,6 +95,23 @@ fn Entry(observation: Observation, labelled: bool, fresh: bool) -> Element {
                 div { class: "entry-line",
                     "Outside: "
                     b { "{observation.outside}°C" }
+                }
+
+                // The shelf, in the café that keeps one. Two lines rather
+                // than a table: this is somebody glancing into the back room
+                // mid-shift, not a stocktake.
+                if let Some(shelf) = observation.inventory {
+                    div { class: "entry-line",
+                        "Beans: "
+                        b {
+                            "{shelf.amount(Ingredient::Beans(Roast::Light))} g light, "
+                            "{shelf.amount(Ingredient::Beans(Roast::Dark))} g dark"
+                        }
+                    }
+                    div { class: "entry-line",
+                        "Milk: "
+                        b { "{shelf.amount(Ingredient::Milk)} ml" }
+                    }
                 }
             }
         }

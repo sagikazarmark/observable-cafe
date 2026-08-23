@@ -22,6 +22,7 @@ chosen in the browser: a page has nothing to ask for and no way in.
 | `sales`                  | Every sale, written up on the roll as it happens.                   |
 | `labels`                 | Counts broken down by which drink it was.                           |
 | `types`                  | The same entries sorted by metric, where a number is named as a counter or a gauge. |
+| `inventory`              | The shelf behind the counter: beans and milk, spent by every sale, refused when they run out, and restocked from the back room at `/admin`. |
 
 A café nobody has configured shows all of them. That is the whole café, and it
 is what `observable-cafe` on its own serves.
@@ -38,6 +39,10 @@ them off stops the timer too, whether or not the timer was named.
 None of this reaches `/metrics`. That is built from the café rather than from
 the notebook, and it reads no feature at all: a café showing no notebook still
 sells coffee, still moves its thermometers, and still publishes every series.
+`inventory` looks like an exception and is not: it changes the café rather
+than the page, so a café with a shelf publishes what is on it and a café
+without one has nothing to publish. The exposition reports the café either
+way.
 
 **A notebook with nothing in it is not drawn.** Turn off observations, sales
 and types and it does not appear as an empty frame; the café takes the page to
@@ -48,7 +53,9 @@ Neither rule reaches the sign, which is over the door rather than in the
 notebook: a café keeping no record at all still says whose café it is. It is
 answered on its own, and `--disable header` is what a page that has already
 named the café asks for, since saying so twice costs height the record is
-worth more of.
+worth more of. The shelf is answered on its own for the same reason, from the
+other side of the counter: a café that writes nothing down still runs out of
+milk, and a café with no shelf still keeps its record.
 
 ## Presets
 
@@ -66,7 +73,8 @@ showed when it was written.
 
 These are the three stages the café used to be a ladder of, kept because a
 course page built against one of them should go on working. None of them names
-the sign, which arrived after all three; `--enable header` puts it back.
+the sign or the shelf, which both arrived after all three; `--enable header`
+and `--enable inventory` put them back.
 
 `--enable` and `--disable` then have the last word, so an example can start
 from a preset and still differ from it in one place:
@@ -93,6 +101,14 @@ page also carries the same string in its head as
 `<meta name="version" content="…">`, so a tab that is already open can be
 identified without going back to the server.
 
+`/admin` is the back room, in a café whose features include `inventory`: the
+shelf, a delivery button for each thing on it, and the 86 board of what
+cannot be made right now. It is a path rather than a link — nothing on the
+café page points to it, because the owner knows the way and a customer has no
+business behind the counter — and it is meant to be open in a second tab
+beside the café. In a café without `inventory` there is no back room, and
+`/admin` serves the café like every other path.
+
 Everything else is the café. There is one page and every path serves it, so a
 link written against the old stage URLs lands on the café rather than on an
 error.
@@ -111,6 +127,31 @@ printed and the notebook is handwritten so that the two are told apart at a
 glance. Without `labels` a sale says only that a coffee was sold: the café
 knows which drink it was, and this record does not keep the dimension, which is
 what a café without labels actually looks like.
+
+**The customer never sees the shelf.** With `inventory` on, every sale takes
+its recipe off it — eighteen grams of beans a drink, light roast for the
+drinks drunk black and dark roast for the milk drinks, plus the milk itself —
+and a drink the shelf cannot cover is refused, all or nothing. The button
+stays a button: the click happens, the till says no, and where the stock went
+is a question the café page cannot answer. `/metrics` can, which is the
+point: sales flatlining while `cafe_beans_grams{roast="light"}` sits at 14 is
+the whole story, told only where somebody thought to look. The one page that
+does show the shelf is the back room at `/admin`, where deliveries are taken
+in — a bag of one roast, a bottle of milk, any time, not only at empty —
+and the 86 board says what cannot be made before a customer finds out by
+ordering it.
+
+**The stocks are the gauges that answer to somebody.** The thermometers
+wander; the shelf falls with every increment of the counter and jumps when a
+delivery lands, which is the other thing a gauge does. The beans are one
+gauge in two series — the first label this café puts on anything other than
+a counter — and the two roasts run out separately, which is why an empty
+fridge stops the latte and not the espresso. The milk is kept in millilitres
+and published as `cafe_milk_litres`: the exposition speaks base units, and
+the two spellings of one fridge are worth meeting side by side. The notebook
+writes the shelf down with everything else, so the gauge cards chart it on
+the same honest terms as the temperatures: a dip and the delivery that fixed
+it, falling between two entries, leave no trace anywhere.
 
 **The café runs faster than the world.** One real second is one café minute, so
 the clock in the corner sweeps through a working day in about a quarter of an
@@ -186,7 +227,8 @@ dx serve
 ```
 
 Then open <http://localhost:8080>. The scrape endpoint is at
-<http://localhost:8080/metrics>, and <http://localhost:8080/version> says which
+<http://localhost:8080/metrics>, the back room is at
+<http://localhost:8080/admin>, and <http://localhost:8080/version> says which
 build is answering.
 
 ```shell
@@ -195,6 +237,7 @@ dx serve --args="--preset labels --enable sales"
 dx serve --args="--disable automatic-observations"
 dx serve --args="--disable notebook"   # coffee and thermometers only
 dx serve --args="--disable header"     # embedded in a page that already names it
+dx serve --args="--disable inventory"  # a café that can never run out
 ```
 
 `--enable` and `--disable` take several features at once, separated by commas

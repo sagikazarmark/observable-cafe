@@ -5,16 +5,74 @@ use futures_timer::Delay;
 
 use crate::api;
 use crate::clock;
-use crate::components::{CoffeeMenu, Header, Notebook, Thermometers, Toast, use_toaster};
+use crate::components::{BackRoom, CoffeeMenu, Header, Notebook, Thermometers, Toast, use_toaster};
 use crate::feature::Features;
 use crate::menu::MENU;
-use crate::state::Snapshot;
+use crate::state::{Order, Snapshot};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const HAND: Asset = asset!("/assets/patrick-hand.woff2");
 
 /// How often the page asks the server what the café looks like.
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Where a path lands.
+///
+/// There is one page and it is the café — every path serves it — except the
+/// back room, which is a path rather than a link: nothing on the café page
+/// points to it, because the owner knows the way and a customer has no
+/// business behind the counter.
+#[derive(Routable, Clone, PartialEq)]
+enum Route {
+    // Named apart from the catch-all because the router will not stretch a
+    // catch-all over an empty path: the front door has to be its own route.
+    #[route("/")]
+    FrontDoor {},
+    #[route("/admin")]
+    BackRoomPage {},
+    #[route("/:..path")]
+    CafePage { path: Vec<String> },
+}
+
+/// The café, entered the ordinary way.
+#[component]
+fn FrontDoor() -> Element {
+    rsx! {
+        Cafe {}
+    }
+}
+
+/// The café, whatever the path said.
+#[component]
+fn CafePage(path: Vec<String>) -> Element {
+    // Taken and ignored: a link written against the old stage URLs lands on
+    // the café rather than on an error.
+    let _ = path;
+
+    rsx! {
+        Cafe {}
+    }
+}
+
+/// The back room, for the café that has one.
+///
+/// A café keeping no shelf has no back room either, and the path serves the
+/// café like every other path, rather than advertising a page this café does
+/// not have.
+#[component]
+fn BackRoomPage() -> Element {
+    let features: Features = use_context();
+
+    if features.inventory {
+        rsx! {
+            BackRoom {}
+        }
+    } else {
+        rsx! {
+            Cafe {}
+        }
+    }
+}
 
 #[component]
 pub fn App() -> Element {
@@ -48,7 +106,7 @@ pub fn App() -> Element {
             "@font-face {{ font-family: 'Patrick Hand'; src: url('{HAND}') format('woff2'); font-weight: 400; font-display: swap; }}"
         }
 
-        Cafe {}
+        Router::<Route> {}
     }
 }
 
@@ -76,15 +134,28 @@ pub fn Cafe() -> Element {
 
     let purchase = move |drink: usize| {
         spawn(async move {
-            let Ok(observed) = api::buy(drink).await else {
+            let Ok((order, observed)) = api::buy(drink).await else {
                 return;
             };
 
-            // Deliberately no number. The sale has happened, but how many have
-            // been sold is not something anybody knows until it is written
-            // down. Saying it here would give the game away.
-            if let Some(bought) = MENU.get(drink) {
-                toaster.show(format!("{} served", bought.name));
+            match (order, MENU.get(drink)) {
+                // Deliberately no number. The sale has happened, but how many
+                // have been sold is not something anybody knows until it is
+                // written down. Saying it here would give the game away.
+                (Order::Served, Some(bought)) => {
+                    toaster.show(format!("{} served", bought.name));
+                }
+                // The whole of what a customer sees of the shelf: the button
+                // stays, the click happens, and the answer is no. Where the
+                // stock went is a question for `/metrics`, which is the point.
+                (Order::OutOf(short), Some(asked)) => {
+                    toaster.refuse(format!(
+                        "Out of {} — no {} till the next delivery",
+                        short.name(),
+                        asked.name.to_lowercase(),
+                    ));
+                }
+                _ => {}
             }
 
             cafe.set(observed);

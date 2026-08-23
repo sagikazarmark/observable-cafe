@@ -12,6 +12,12 @@
     --accent: #c5703f;
     --inside: #df7d45;
     --outside: #5a94bb;
+    /* The shelf's three stocks, drawn in the same ink everywhere they appear:
+       the bars in the back room and the lines on the metrics tab. */
+    --light-roast: #b98a4e;
+    --dark-roast: #53382a;
+    --milk: #7fa3bd;
+    --refused: #9c3d2c;
     --shadow: 0 18px 55px rgba(62, 43, 32, 0.14);
 }
 
@@ -630,6 +636,128 @@ button, input { font: inherit; }
 }
 
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* A refusal is inked differently: "out of milk" read in the same voice as
+   "latte served" would take a moment too long to land. */
+.toast.refused { background: var(--refused); }
+
+/* ---------------------------------------------------------------- back room
+   Reached at /admin and linked from nowhere on the café page. One panel,
+   café-side styling: this is behind the counter, not in the notebook. */
+
+.back-room .layout.alone { grid-template-columns: minmax(0, min(640px, 100%)); }
+
+.back-room-title {
+    color: var(--muted);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.05rem;
+    font-style: italic;
+    white-space: nowrap;
+}
+
+.stock-list { display: grid; gap: 12px; }
+
+.stock {
+    border: 1px solid rgba(62,43,32,.09);
+    border-radius: 20px;
+    padding: 14px 16px;
+    background: var(--card);
+    box-shadow: 0 8px 24px rgba(91,62,40,.07);
+}
+
+.stock-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.stock-name { font-weight: 800; }
+
+/* The same words /metrics uses, so the bar here and the series on the wire
+   read as one thing. */
+.stock-series {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .74rem;
+}
+
+/* The shelf drawn as a shelf: a long horizontal level, emptied from the
+   right by sales and refilled by deliveries. */
+.stock-bar {
+    height: 14px;
+    margin-top: 10px;
+    border-radius: 999px;
+    background: rgba(62,43,32,.08);
+    box-shadow: inset 0 0 0 1px rgba(62,43,32,.08);
+    overflow: hidden;
+}
+
+.stock-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .5s cubic-bezier(.2,.8,.2,1);
+}
+
+/* Painted here rather than inline: the width is the only thing the page has
+   to say about a fill, and it is sent alone, as the thermometer sends its
+   level. */
+.stock-fill.light-roast { background: var(--light-roast); }
+.stock-fill.dark-roast { background: var(--dark-roast); }
+.stock-fill.milk { background: var(--milk); }
+
+.stock-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.stock-amount { color: var(--muted); font-size: .85rem; }
+.stock-amount b { color: var(--coffee-dark); font-size: 1.05rem; }
+
+/* Café slang eighty-sixes a dish the kitchen is out of; the board is where
+   the owner reads it before a customer finds out by ordering one. */
+.eighty-six {
+    margin-top: 14px;
+    border: 2px dashed rgba(111,78,55,.22);
+    border-radius: 16px;
+    padding: 13px 16px;
+    background: rgba(255,255,255,.4);
+}
+
+.eighty-six-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 8px;
+}
+
+.eighty-six-title {
+    color: var(--coffee-dark);
+    font-weight: 800;
+    font-size: .78rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.eighty-six-note { color: var(--muted); font-size: .78rem; }
+
+.eighty-six-clear { color: var(--muted); font-size: .88rem; }
+
+.eighty-six-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px dashed rgba(111,78,55,.18);
+}
+
+.eighty-six-drink { font-weight: 600; }
+
+.eighty-six-reason { color: var(--refused); font-size: .85rem; font-weight: 600; }
 
 /* Stacked, the two panels no longer fit side by side, so let the page scroll. */
 @media (max-width: 900px) {

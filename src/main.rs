@@ -3,6 +3,7 @@ mod app;
 mod clock;
 mod components;
 mod feature;
+mod inventory;
 mod menu;
 mod season;
 mod state;
