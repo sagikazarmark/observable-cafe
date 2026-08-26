@@ -68,33 +68,42 @@ fn Entry(observation: Observation, labelled: bool, fresh: bool) -> Element {
             span { class: "entry-time", "{observation.at}" }
 
             div { class: "entry-body",
-                div { class: "entry-line",
-                    "Coffees sold: "
-                    b { "{observation.sold.total()}" }
-                }
+                // Each line is written down where the café measures the thing:
+                // an entry records what the owner had to look at, and a
+                // reading that was never taken is not a blank in the notebook.
+                if let Some(sold) = observation.sold {
+                    div { class: "entry-line",
+                        "Coffees sold: "
+                        b { "{sold.total()}" }
+                    }
 
-                // Only a café showing labels breaks the count down, and the
-                // total stays written above it: somebody keeping notes wants
-                // the headline, even though the machine-readable version
-                // publishes the parts alone.
-                if labelled {
-                    div { class: "entry-breakdown",
-                        for (drink , count) in observation.sold.by_drink() {
-                            div { key: "{drink.key}", class: "entry-line",
-                                "{drink.name}: "
-                                b { "{count}" }
+                    // Only a café showing labels breaks the count down, and the
+                    // total stays written above it: somebody keeping notes wants
+                    // the headline, even though the machine-readable version
+                    // publishes the parts alone.
+                    if labelled {
+                        div { class: "entry-breakdown",
+                            for (drink , count) in sold.by_drink() {
+                                div { key: "{drink.key}", class: "entry-line",
+                                    "{drink.name}: "
+                                    b { "{count}" }
+                                }
                             }
                         }
                     }
                 }
 
-                div { class: "entry-line",
-                    "Inside: "
-                    b { "{observation.inside}°C" }
+                if let Some(inside) = observation.inside {
+                    div { class: "entry-line",
+                        "Inside: "
+                        b { "{inside}°C" }
+                    }
                 }
-                div { class: "entry-line",
-                    "Outside: "
-                    b { "{observation.outside}°C" }
+                if let Some(outside) = observation.outside {
+                    div { class: "entry-line",
+                        "Outside: "
+                        b { "{outside}°C" }
+                    }
                 }
 
                 // The shelf, in the café that keeps one. Two lines rather

@@ -13,42 +13,54 @@ pub fn MetricCards(snapshot: Snapshot) -> Element {
     let inside = snapshot.recorded(|observation| observation.inside);
     let outside = snapshot.recorded(|observation| observation.outside);
 
+    // Each card belongs to an instrument, so a café without the instrument is
+    // missing the card rather than showing an empty one: a metric the café
+    // does not measure is not a metric at zero.
     rsx! {
         div { class: "cards",
-            article { class: "metric",
-                div { class: "metric-topline",
-                    span { class: "metric-name", "Coffees sold" }
-                    span { class: "metric-type counter-badge", "Counter" }
-                }
-                div { class: "metric-value-row",
-                    span { class: "metric-value", "{snapshot.sold.total()}" }
-                    span { class: "metric-unit", "since the café opened" }
-                }
+            if let Some(sold) = snapshot.sold {
+                article { class: "metric",
+                    div { class: "metric-topline",
+                        span { class: "metric-name", "Coffees sold" }
+                        span { class: "metric-type counter-badge", "Counter" }
+                    }
+                    div { class: "metric-value-row",
+                        span { class: "metric-value", "{sold.total()}" }
+                        span { class: "metric-unit", "since the café opened" }
+                    }
 
-                // One row per drink that has been sold, and none for the rest:
-                // a series begins when something is first observed under it.
-                div { class: "metric-series",
-                    for (drink , count) in snapshot.sold.by_drink() {
-                        div { key: "{drink.key}", class: "series",
-                            code { "drink=\"{drink.key}\"" }
-                            b { "{count}" }
+                    // One row per drink that has been sold, and none for the
+                    // rest: a series begins when something is first observed
+                    // under it. A till keeping one number has no rows at all,
+                    // which is what the value above being the only series
+                    // looks like.
+                    div { class: "metric-series",
+                        for (drink , count) in sold.by_drink() {
+                            div { key: "{drink.key}", class: "series",
+                                code { "drink=\"{drink.key}\"" }
+                                b { "{count}" }
+                            }
                         }
                     }
                 }
             }
 
-            TemperatureCard {
-                name: "Inside temperature",
-                gauge: snapshot.inside.clone(),
-                recorded: inside,
-                color: "var(--inside)",
+            if let Some(gauge) = snapshot.inside.clone() {
+                TemperatureCard {
+                    name: "Inside temperature",
+                    gauge,
+                    recorded: inside,
+                    color: "var(--inside)",
+                }
             }
 
-            TemperatureCard {
-                name: "Outside temperature",
-                gauge: snapshot.outside.clone(),
-                recorded: outside,
-                color: "var(--outside)",
+            if let Some(gauge) = snapshot.outside.clone() {
+                TemperatureCard {
+                    name: "Outside temperature",
+                    gauge,
+                    recorded: outside,
+                    color: "var(--outside)",
+                }
             }
 
             // Only a café keeping a shelf has these to show, and they are the

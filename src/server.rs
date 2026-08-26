@@ -18,6 +18,7 @@ use crate::clock;
 use crate::feature::Features;
 use crate::inventory::{Ingredient, Inventory};
 use crate::menu::MENU;
+use crate::metric::Metrics;
 use crate::state::{Observation, Order, Sale, Sales, Snapshot};
 use simulation::Thermometer;
 
@@ -31,7 +32,8 @@ const SALES_LIMIT: usize = 60;
 
 /// The one and only café. It lasts as long as the process does; restarting the
 /// server is the only thing besides the reset button that clears it.
-static CAFE: LazyLock<Mutex<Cafe>> = LazyLock::new(|| Mutex::new(Cafe::new(Features::all())));
+static CAFE: LazyLock<Mutex<Cafe>> =
+    LazyLock::new(|| Mutex::new(Cafe::new(Features::all(), Metrics::all())));
 
 struct Cafe {
     /// What this café shows, as it was told at startup.
@@ -39,6 +41,12 @@ struct Cafe {
     /// Kept here rather than in a static of its own so that the parts of the
     /// café that depend on it can be built and tested a café at a time.
     features: Features,
+    /// What this café measures, told at startup the same way.
+    ///
+    /// Kept so the café outlives a reset with the same instruments: the till
+    /// and the thermometers below are built from it and speak for themselves
+    /// afterwards.
+    metrics: Metrics,
     /// Seconds of real time since opening, and so minutes of café time.
     ///
     /// Stays at zero until somebody opens the page: an unvisited café should
@@ -61,33 +69,41 @@ struct Cafe {
     /// How many coffees have been rung up since opening, which numbers the
     /// sales the same way `written` numbers the notebook.
     rung_up: u64,
-    sold: Sales,
+    /// The till's running count, in a café that keeps one.
+    ///
+    /// `None` is no counter rather than nothing sold yet: a café not
+    /// measuring its sales has no number for anything to report, however many
+    /// coffees it makes.
+    sold: Option<Sales>,
     /// The shelf, in a café that keeps one.
     ///
     /// `None` is no shelf rather than an empty one: a café without the
     /// feature brews from nothing and can never run out.
     inventory: Option<Inventory>,
-    inside: Thermometer,
-    outside: Thermometer,
+    /// The thermometers, in a café that reads them. One instrument, so the
+    /// two are present or absent together.
+    inside: Option<Thermometer>,
+    outside: Option<Thermometer>,
     notebook: VecDeque<Observation>,
     sales: VecDeque<Sale>,
 }
 
 impl Cafe {
-    fn new(features: Features) -> Self {
+    fn new(features: Features, metrics: Metrics) -> Self {
         let opening = clock::opening();
 
         Self {
             features,
+            metrics,
             tick: 0,
             observe_every: clock::DEFAULT_OBSERVE_EVERY,
             written: 0,
             last_observed: 0,
             rung_up: 0,
-            sold: Sales::default(),
+            sold: metrics.coffees_sold.then(|| Sales::new(metrics.drink)),
             inventory: features.inventory.then(Inventory::full),
-            inside: Thermometer::inside(opening),
-            outside: Thermometer::outside(opening),
+            inside: metrics.temperatures.then(|| Thermometer::inside(opening)),
+            outside: metrics.temperatures.then(|| Thermometer::outside(opening)),
             notebook: VecDeque::new(),
             sales: VecDeque::new(),
         }
@@ -100,8 +116,11 @@ impl Cafe {
             clock: clock::written(now),
             day: clock::dated(now),
             sold: self.sold,
-            inside: self.inside.reading().clone(),
-            outside: self.outside.reading().clone(),
+            inside: self.inside.as_ref().map(|inside| inside.reading().clone()),
+            outside: self
+                .outside
+                .as_ref()
+                .map(|outside| outside.reading().clone()),
             observations: self.notebook.iter().cloned().collect(),
             sales: self.sales.iter().cloned().collect(),
             inventory: self.inventory,
@@ -120,8 +139,11 @@ impl Cafe {
             at: clock::written(now),
             day: clock::dated(now),
             sold: self.sold,
-            inside: self.inside.reading().value(),
-            outside: self.outside.reading().value(),
+            inside: self.inside.as_ref().map(|inside| inside.reading().value()),
+            outside: self
+                .outside
+                .as_ref()
+                .map(|outside| outside.reading().value()),
             inventory: self.inventory,
         });
 
@@ -154,7 +176,12 @@ impl Cafe {
             return Order::OutOf(short);
         }
 
-        if !self.sold.ring_up(drink) {
+        // Counted where there is a counter to count it. The sale happens
+        // either way: a café that does not measure its sales still makes the
+        // coffee, it just has no number that knows about it.
+        if let Some(sold) = &mut self.sold
+            && !sold.ring_up(drink)
+        {
             return Order::OffMenu;
         }
 
@@ -165,7 +192,10 @@ impl Cafe {
             self.rung_up,
             clock::written(now),
             clock::dated(now),
-            drink,
+            // Noted only where the café measures the dimension: a till that
+            // does not record which drink writes up "a coffee", and there is
+            // nothing behind it to remember.
+            self.metrics.drink.then_some(drink),
         ));
 
         if self.sales.len() > SALES_LIMIT {
@@ -267,7 +297,7 @@ pub fn note() -> Snapshot {
 
 pub fn reset() -> Snapshot {
     let mut cafe = cafe();
-    *cafe = Cafe::new(cafe.features);
+    *cafe = Cafe::new(cafe.features, cafe.metrics);
 
     cafe.snapshot()
 }
@@ -276,10 +306,11 @@ pub fn reset() -> Snapshot {
 ///
 /// The simulation is deliberately not started here; the café stands at opening
 /// time until somebody looks at it.
-pub fn launch(features: Features) -> ! {
-    // The whole café rather than just the field: whether there is a shelf
-    // behind the counter follows from what was asked for.
-    *cafe() = Cafe::new(features);
+pub fn launch(features: Features, metrics: Metrics) -> ! {
+    // The whole café rather than just the fields: what instruments it has and
+    // whether there is a shelf behind the counter follow from what was asked
+    // for.
+    *cafe() = Cafe::new(features, metrics);
 
     dioxus::serve(move || async move {
         Ok(dioxus::server::router(crate::app::App)
@@ -296,10 +327,22 @@ mod tests {
     use crate::feature::{Feature, Features};
     use crate::inventory::{Ingredient, Inventory, Roast};
     use crate::menu::MENU;
+    use crate::metric::{Metric, Metrics};
     use crate::state::Order;
 
     fn cafe_showing(disabled: &[Feature]) -> Cafe {
-        Cafe::new(Features::resolve(None, &[], disabled).expect("nothing contradicts"))
+        cafe_measuring(disabled, &[])
+    }
+
+    /// A café told what to show and what to measure, resolved the way the
+    /// configuration resolves them: the metrics first, the features against
+    /// them.
+    fn cafe_measuring(disabled: &[Feature], not_measured: &[Metric]) -> Cafe {
+        let metrics = Metrics::resolve(None, &[], not_measured).expect("nothing contradicts");
+        let features =
+            Features::resolve(None, &[], disabled, &metrics).expect("nothing contradicts");
+
+        Cafe::new(features, metrics)
     }
 
     #[test]
@@ -382,7 +425,7 @@ mod tests {
 
         let snapshot = cafe.snapshot();
 
-        assert_eq!(snapshot.sold.total(), 1);
+        assert_eq!(snapshot.sold.expect("this café keeps a count").total(), 1);
         assert_eq!(snapshot.sales.len(), 1);
         assert_eq!(snapshot.sales[0].seq, 1);
     }
@@ -426,7 +469,10 @@ mod tests {
 
         let snapshot = cafe.snapshot();
 
-        assert_eq!(snapshot.sold.total(), fridge);
+        assert_eq!(
+            snapshot.sold.expect("this café keeps a count").total(),
+            fridge
+        );
         assert_eq!(snapshot.sales.len(), fridge as usize);
     }
 
@@ -505,7 +551,7 @@ mod tests {
             shelf.amount(Ingredient::Milk),
             Inventory::capacity(Ingredient::Milk)
         );
-        assert_eq!(snapshot.sold.total(), 1);
+        assert_eq!(snapshot.sold.expect("this café keeps a count").total(), 1);
     }
 
     /// Emptied by lattes, refilled by a bottle: the gauge goes down and comes
@@ -561,5 +607,61 @@ mod tests {
 
         assert_eq!(sales[0].day, opening.day);
         assert_ne!(sales[1].day, sales[0].day);
+    }
+
+    /// The coffee is made either way: a café that does not measure its sales
+    /// has no number that knows about them, and that is all it is missing.
+    /// The roll still fills and the shelf is still spent, because neither of
+    /// those is the count.
+    #[test]
+    fn a_cafe_without_a_till_counter_still_sells() {
+        let mut cafe = cafe_measuring(&[], &[Metric::CoffeesSold]);
+
+        assert_eq!(cafe.ring_up(LATTE), Order::Served);
+        cafe.observe();
+
+        let snapshot = cafe.snapshot();
+
+        assert!(snapshot.sold.is_none());
+        assert_eq!(snapshot.sales.len(), 1);
+        assert!(snapshot.observations[0].sold.is_none());
+
+        let shelf = snapshot.inventory.expect("this café keeps a shelf");
+        assert_eq!(
+            shelf.amount(Ingredient::Milk),
+            Inventory::capacity(Ingredient::Milk) - MENU[LATTE].recipe.milk
+        );
+    }
+
+    /// A till that does not record the dimension keeps one number, and its
+    /// sales say only that a coffee was sold: there is nothing behind them to
+    /// remember, rather than something withheld.
+    #[test]
+    fn a_cafe_without_the_drink_dimension_counts_one_number() {
+        let mut cafe = cafe_measuring(&[], &[Metric::Drink]);
+        cafe.ring_up(0);
+        cafe.ring_up(LATTE);
+
+        let snapshot = cafe.snapshot();
+        let sold = snapshot.sold.expect("this café keeps a count");
+
+        assert_eq!(sold.total(), 2);
+        assert_eq!(sold.by_drink().count(), 0);
+        assert!(snapshot.sales[0].drink().is_none());
+    }
+
+    /// No thermometer is no temperature anywhere: not in the café's own
+    /// reading, and not in an entry either. What the exposition makes of the
+    /// same absence is tested beside the exposition.
+    #[test]
+    fn a_cafe_without_thermometers_reads_no_temperature() {
+        let mut cafe = cafe_measuring(&[], &[Metric::Temperatures]);
+        cafe.observe();
+
+        let snapshot = cafe.snapshot();
+
+        assert!(snapshot.inside.is_none() && snapshot.outside.is_none());
+        assert!(snapshot.observations[0].inside.is_none());
+        assert!(snapshot.observations[0].outside.is_none());
     }
 }

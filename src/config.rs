@@ -16,6 +16,7 @@ use serde::de::value::StrDeserializer;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::feature::{Feature, Features, Preset};
+use crate::metric::{Metric, Metrics};
 
 /// The prefix every one of the café's environment variables carries.
 const ENV_PREFIX: &str = "OBSERVABLE_CAFE_";
@@ -73,6 +74,16 @@ struct Cli {
     #[arg(long, value_name = "FEATURE", value_delimiter = ',')]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     disable: Vec<Feature>,
+
+    /// Measure this metric as well, whatever the preset says
+    #[arg(long, value_name = "METRIC", value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    collect: Vec<Metric>,
+
+    /// Do not measure this metric, whatever the preset says
+    #[arg(long, value_name = "METRIC", value_delimiter = ',')]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    no_collect: Vec<Metric>,
 }
 
 /// The settings once every source has had its say, still worded the way they
@@ -88,10 +99,16 @@ struct Settings {
     /// Each list is taken from one layer whole rather than added to across
     /// layers: overruling a list means giving the list that replaces it, which
     /// is the same rule the other settings follow.
-    #[serde(deserialize_with = "listed_features")]
+    #[serde(deserialize_with = "listed")]
     enable: Vec<Feature>,
-    #[serde(deserialize_with = "listed_features")]
+    #[serde(deserialize_with = "listed")]
     disable: Vec<Feature>,
+    /// The other axis, spelled the same way: what the café measures rather
+    /// than what it shows.
+    #[serde(deserialize_with = "listed")]
+    collect: Vec<Metric>,
+    #[serde(deserialize_with = "listed")]
+    no_collect: Vec<Metric>,
 }
 
 /// What the café is run with.
@@ -99,6 +116,8 @@ struct Settings {
 pub struct Options {
     /// What the café shows, with the preset already worked out.
     pub features: Features,
+    /// What the café measures, worked out the same way.
+    pub metrics: Metrics,
 }
 
 impl Options {
@@ -130,31 +149,32 @@ impl Options {
     }
 }
 
-/// Reads a list of features written either as a list or as one string with
-/// commas in it.
+/// Reads a list of features or metrics written either as a list or as one
+/// string with commas in it.
 ///
 /// The command line takes `--enable sales,types`, and a file has real lists
 /// to write them as, but an environment variable holds one string and nobody
 /// spells a list `[sales,types]` in a shell. Accepting both is what lets one
 /// spelling serve all three.
-fn listed_features<'de, D>(deserializer: D) -> Result<Vec<Feature>, D::Error>
+fn listed<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
+    T: Deserialize<'de>,
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum Listed {
+    enum Listed<T> {
         Together(String),
-        Apart(Vec<Feature>),
+        Apart(Vec<T>),
     }
 
-    match Listed::deserialize(deserializer)? {
-        Listed::Apart(features) => Ok(features),
+    match Listed::<T>::deserialize(deserializer)? {
+        Listed::Apart(named) => Ok(named),
         Listed::Together(listed) => listed
             .split(',')
             .map(str::trim)
             .filter(|name| !name.is_empty())
-            .map(|name| Feature::deserialize(StrDeserializer::new(name)))
+            .map(|name| T::deserialize(StrDeserializer::new(name)))
             .collect(),
     }
 }
@@ -185,14 +205,33 @@ impl TryFrom<Settings> for Options {
     type Error = Error;
 
     fn try_from(settings: Settings) -> Result<Self, Self::Error> {
-        let features = Features::resolve(settings.preset, &settings.enable, &settings.disable)
+        // The metrics are settled first: the page can only show what the café
+        // measures, so what it measures is part of the question of what to
+        // show and none of the answer.
+        let metrics = Metrics::resolve(settings.preset, &settings.collect, &settings.no_collect)
             // Refused rather than resolved one way or the other: nobody means
             // both, so it is a mistake to report rather than a preference.
             .map_err(|contradicted| -> Error {
-                Box::new(format!("{} is both enabled and disabled", contradicted.name()).into())
+                Box::new(
+                    format!(
+                        "{} is both collected and not collected",
+                        contradicted.name()
+                    )
+                    .into(),
+                )
             })?;
 
-        Ok(Self { features })
+        let features = Features::resolve(
+            settings.preset,
+            &settings.enable,
+            &settings.disable,
+            &metrics,
+        )
+        .map_err(|contradicted| -> Error {
+            Box::new(format!("{} is both enabled and disabled", contradicted.name()).into())
+        })?;
+
+        Ok(Self { features, metrics })
     }
 }
 
@@ -203,6 +242,7 @@ impl TryFrom<Settings> for Options {
 mod tests {
     use super::{CONFIG_ENV, Cli, DEFAULT_CONFIG_FILE, ENV_PREFIX, Error, Options};
     use crate::feature::Features;
+    use crate::metric::Metrics;
     use clap::Parser;
     use figment::Jail;
 
@@ -224,7 +264,8 @@ mod tests {
             assert_eq!(
                 parse(&[]),
                 Ok(Options {
-                    features: Features::all()
+                    features: Features::all(),
+                    metrics: Metrics::all(),
                 })
             );
 
@@ -466,6 +507,84 @@ mod tests {
             let features = parse(&["--disable", "labels"]).unwrap().features;
 
             assert!(features.types && !features.labels);
+
+            Ok(())
+        });
+    }
+
+    /// The reason the axis exists: a `samples` course serves an exposition
+    /// with one counter in it and nothing else.
+    #[test]
+    fn a_preset_measures_only_what_it_names() {
+        Jail::expect_with(|_| {
+            let metrics = parse(&["--preset", "samples"]).unwrap().metrics;
+
+            assert!(metrics.coffees_sold);
+            assert!(!metrics.drink && !metrics.temperatures);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn metrics_can_be_added_to_and_taken_from_a_preset() {
+        Jail::expect_with(|_| {
+            let metrics = parse(&["--preset", "samples", "--collect", "temperatures"])
+                .unwrap()
+                .metrics;
+            assert!(metrics.temperatures && metrics.coffees_sold);
+
+            let metrics = parse(&["--preset", "types", "--no-collect", "drink"])
+                .unwrap()
+                .metrics;
+            assert!(metrics.coffees_sold && !metrics.drink);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn a_metric_that_is_both_collected_and_not_is_refused() {
+        Jail::expect_with(|_| {
+            assert_eq!(
+                parse(&["--collect", "drink", "--no-collect", "drink"])
+                    .unwrap_err()
+                    .to_string(),
+                "drink is both collected and not collected"
+            );
+
+            Ok(())
+        });
+    }
+
+    /// The page can only show what the café measures, so taking the dimension
+    /// off the till takes the breakdown off the notebook too, without a word
+    /// having been said about features.
+    #[test]
+    fn an_unmeasured_dimension_comes_off_the_page_too() {
+        Jail::expect_with(|_| {
+            let options = parse(&["--no-collect", "drink"]).unwrap();
+
+            assert!(!options.features.labels);
+            assert!(options.features.notebook && options.features.observations);
+
+            Ok(())
+        });
+    }
+
+    /// The other axis is spelled the same way in every source, and follows
+    /// the same rules: later layers win, and a list is taken whole.
+    #[test]
+    fn metrics_can_be_given_in_a_file_and_the_environment() {
+        Jail::expect_with(|jail| {
+            jail.create_file(DEFAULT_CONFIG_FILE, r#"no_collect = ["temperatures"]"#)?;
+            assert!(!parse(&[]).unwrap().metrics.temperatures);
+
+            jail.set_env(format!("{ENV_PREFIX}NO_COLLECT"), "drink");
+            let metrics = parse(&[]).unwrap().metrics;
+
+            assert!(!metrics.drink, "the environment overrules the file");
+            assert!(metrics.temperatures, "a list replaces the one below it");
 
             Ok(())
         });

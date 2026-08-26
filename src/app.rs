@@ -264,9 +264,13 @@ pub fn Cafe() -> Element {
             main { class: "{layout}",
                 section { class: "cafe-panel", aria_label: "The café",
                     CoffeeMenu { on_purchase: purchase }
-                    Thermometers {
-                        inside: snapshot.inside.clone(),
-                        outside: snapshot.outside.clone(),
+                    // Hung on the wall only in a café that reads them: the
+                    // snapshot says what the café measures, so a café without
+                    // the instrument has nothing here rather than a blank.
+                    if let (Some(inside), Some(outside)) =
+                        (snapshot.inside.clone(), snapshot.outside.clone())
+                    {
+                        Thermometers { inside, outside }
                     }
                 }
 

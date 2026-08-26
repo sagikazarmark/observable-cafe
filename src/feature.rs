@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::metric::Metrics;
+
 /// One thing the café can be told to show.
 ///
 /// The kebab-case spellings are the ones the command line, the environment and
@@ -112,15 +114,6 @@ impl Feature {
             .position(|&feature| feature == self)
             .expect("every feature is in ALL")
     }
-
-    /// Whether this feature puts anything in the notebook on its own.
-    ///
-    /// [`Feature::Labels`] does not: it changes how the others are written out
-    /// rather than adding anything of its own, so a notebook holding nothing but
-    /// labels is an empty notebook.
-    fn fills_the_notebook(self) -> bool {
-        matches!(self, Self::Observations | Self::Sales | Self::Types)
-    }
 }
 
 /// A named set of features to start from.
@@ -203,15 +196,22 @@ pub struct Features {
 impl Features {
     /// The whole café, which is what it shows when nobody has said otherwise.
     pub fn all() -> Self {
-        Self::resolve(None, &[], &[]).expect("nothing to contradict")
+        Self::resolve(None, &[], &[], &Metrics::all()).expect("nothing to contradict")
     }
 
-    /// Works out what to show from a preset and the features asked for or
-    /// refused on top of it.
+    /// Works out what to show from a preset, the features asked for or
+    /// refused on top of it, and what the café measures.
     ///
     /// Without a preset every feature is shown; with one, only what it names.
     /// `enable` and `disable` then have the last word, so an example can start
     /// from a preset and still differ from it in one place.
+    ///
+    /// `metrics` has a say because the page can only show what the café
+    /// measures: a count is not broken down by a dimension the till never
+    /// recorded, and a notebook is not held open by entries with nothing in
+    /// them. Both are resolved silently, the way the notebook already resolves
+    /// what is kept in it: the dependent thing is off, and nobody has to say
+    /// so twice.
     ///
     /// A feature named in both is returned as an error rather than resolved
     /// one way or the other: nobody means both, so it is a mistake to report
@@ -220,6 +220,7 @@ impl Features {
         preset: Option<Preset>,
         enable: &[Feature],
         disable: &[Feature],
+        metrics: &Metrics,
     ) -> Result<Self, Feature> {
         if let Some(&contradicted) = enable.iter().find(|feature| disable.contains(feature)) {
             return Err(contradicted);
@@ -246,17 +247,31 @@ impl Features {
                 .all(|feature| asked_for[feature.index()])
         };
 
+        // What an entry has to say. A café measuring nothing and keeping no
+        // shelf would write entries that are only a time, and an entry with
+        // nothing in it teaches nothing, so the views made of entries go the
+        // way the notebook goes when there is nothing to keep in it.
+        let records_anything =
+            metrics.coffees_sold || metrics.temperatures || shown(Feature::Inventory);
+
+        let observations = shown(Feature::Observations) && records_anything;
+        let sales = shown(Feature::Sales);
+        let types = shown(Feature::Types) && records_anything;
+
         Ok(Self {
             header: shown(Feature::Header),
-            notebook: shown(Feature::Notebook)
-                && Feature::ALL
-                    .into_iter()
-                    .any(|feature| feature.fills_the_notebook() && shown(feature)),
-            observations: shown(Feature::Observations),
-            automatic_observations: shown(Feature::AutomaticObservations),
-            sales: shown(Feature::Sales),
-            labels: shown(Feature::Labels),
-            types: shown(Feature::Types),
+            // False when it was turned off, and false when nothing is left to
+            // put in it. The sales hold it open on their own: the roll is an
+            // event log rather than a metric, so a café measuring nothing
+            // still has sales to write up.
+            notebook: shown(Feature::Notebook) && (observations || sales || types),
+            observations,
+            automatic_observations: shown(Feature::AutomaticObservations) && records_anything,
+            sales,
+            // Only a café measuring the dimension can break the count down by
+            // it: a modifier of records that were never kept modifies nothing.
+            labels: shown(Feature::Labels) && metrics.drink,
+            types,
             inventory: shown(Feature::Inventory),
         })
     }
@@ -265,13 +280,25 @@ impl Features {
 #[cfg(test)]
 mod tests {
     use super::{Feature, Features, Preset};
+    use crate::metric::{Metric, Metrics};
+
+    /// Resolves against a café measuring everything, so that these tests stay
+    /// about the features; what measuring less takes off the page is tested
+    /// on its own below.
+    fn resolve(
+        preset: Option<Preset>,
+        enable: &[Feature],
+        disable: &[Feature],
+    ) -> Result<Features, Feature> {
+        Features::resolve(preset, enable, disable, &Metrics::all())
+    }
 
     /// Somebody who has said nothing about features has not asked for a
     /// smaller café; they have not asked for anything.
     #[test]
     fn everything_is_shown_by_default() {
         assert_eq!(
-            Features::resolve(None, &[], &[]),
+            resolve(None, &[], &[]),
             Ok(Features {
                 header: true,
                 notebook: true,
@@ -290,7 +317,7 @@ mod tests {
     #[test]
     fn a_preset_shows_only_what_it_names() {
         assert_eq!(
-            Features::resolve(Some(Preset::Samples), &[], &[]),
+            resolve(Some(Preset::Samples), &[], &[]),
             Ok(Features {
                 // Named by no preset, for the same reason: `samples` predates
                 // the sign too, and an example built against it is embedded in
@@ -312,8 +339,8 @@ mod tests {
 
     #[test]
     fn the_presets_are_the_ladder_the_stages_were() {
-        let labels = Features::resolve(Some(Preset::Labels), &[], &[]).unwrap();
-        let types = Features::resolve(Some(Preset::Types), &[], &[]).unwrap();
+        let labels = resolve(Some(Preset::Labels), &[], &[]).unwrap();
+        let types = resolve(Some(Preset::Types), &[], &[]).unwrap();
 
         assert!(labels.labels && !labels.types);
         assert!(types.labels && types.types);
@@ -321,17 +348,17 @@ mod tests {
 
     #[test]
     fn a_preset_can_be_added_to_and_taken_from() {
-        let features = Features::resolve(Some(Preset::Samples), &[Feature::Sales], &[]).unwrap();
+        let features = resolve(Some(Preset::Samples), &[Feature::Sales], &[]).unwrap();
         assert!(features.sales && features.observations);
 
         let features =
-            Features::resolve(Some(Preset::Types), &[], &[Feature::AutomaticObservations]).unwrap();
+            resolve(Some(Preset::Types), &[], &[Feature::AutomaticObservations]).unwrap();
         assert!(features.observations && !features.automatic_observations);
     }
 
     #[test]
     fn a_feature_can_be_taken_from_the_whole_cafe() {
-        let features = Features::resolve(None, &[], &[Feature::Labels]).unwrap();
+        let features = resolve(None, &[], &[Feature::Labels]).unwrap();
 
         assert!(!features.labels);
         assert!(features.observations && features.sales && features.types);
@@ -341,7 +368,7 @@ mod tests {
     /// whole of what that costs it.
     #[test]
     fn the_sign_can_be_taken_down_without_closing_the_cafe() {
-        let features = Features::resolve(None, &[], &[Feature::Header]).unwrap();
+        let features = resolve(None, &[], &[Feature::Header]).unwrap();
 
         assert!(!features.header);
         assert_eq!(
@@ -358,10 +385,10 @@ mod tests {
     /// no shelf still keeps its record.
     #[test]
     fn the_shelf_and_the_notebook_are_answered_apart() {
-        let shelfless = Features::resolve(None, &[], &[Feature::Inventory]).unwrap();
+        let shelfless = resolve(None, &[], &[Feature::Inventory]).unwrap();
         assert!(!shelfless.inventory && shelfless.notebook);
 
-        let bookless = Features::resolve(None, &[], &[Feature::Notebook]).unwrap();
+        let bookless = resolve(None, &[], &[Feature::Notebook]).unwrap();
         assert!(bookless.inventory && !bookless.notebook);
     }
 
@@ -369,10 +396,10 @@ mod tests {
     /// held up by the other.
     #[test]
     fn the_sign_and_the_notebook_are_answered_apart() {
-        let signless = Features::resolve(None, &[], &[Feature::Header]).unwrap();
+        let signless = resolve(None, &[], &[Feature::Header]).unwrap();
         assert!(signless.notebook);
 
-        let bookless = Features::resolve(None, &[], &[Feature::Notebook]).unwrap();
+        let bookless = resolve(None, &[], &[Feature::Notebook]).unwrap();
         assert!(bookless.header);
     }
 
@@ -380,7 +407,7 @@ mod tests {
     #[test]
     fn a_feature_cannot_be_both_enabled_and_disabled() {
         assert_eq!(
-            Features::resolve(None, &[Feature::Types], &[Feature::Types]),
+            resolve(None, &[Feature::Types], &[Feature::Types]),
             Err(Feature::Types)
         );
     }
@@ -389,7 +416,7 @@ mod tests {
     /// working when another feature is kept in the notebook later.
     #[test]
     fn turning_off_the_notebook_turns_off_what_is_kept_in_it() {
-        let features = Features::resolve(None, &[], &[Feature::Notebook]).unwrap();
+        let features = resolve(None, &[], &[Feature::Notebook]).unwrap();
 
         assert_eq!(
             features,
@@ -414,7 +441,7 @@ mod tests {
     /// "no notebook" means no notebook however the rest of it is worded.
     #[test]
     fn a_feature_kept_in_the_notebook_cannot_outlive_it() {
-        let features = Features::resolve(None, &[Feature::Types], &[Feature::Notebook]).unwrap();
+        let features = resolve(None, &[Feature::Types], &[Feature::Notebook]).unwrap();
 
         assert!(!features.types && !features.notebook);
     }
@@ -422,7 +449,7 @@ mod tests {
     /// Observations off means off altogether, by hand as well as on a timer.
     #[test]
     fn the_timer_cannot_outlive_the_notebook() {
-        let features = Features::resolve(
+        let features = resolve(
             None,
             &[Feature::AutomaticObservations],
             &[Feature::Observations],
@@ -436,7 +463,7 @@ mod tests {
     /// to do it, so it is not drawn.
     #[test]
     fn a_notebook_with_nothing_in_it_is_not_shown() {
-        let features = Features::resolve(
+        let features = resolve(
             None,
             &[],
             &[Feature::Observations, Feature::Sales, Feature::Types],
@@ -450,7 +477,7 @@ mod tests {
     /// anything in it, so they cannot hold an empty one open.
     #[test]
     fn labels_alone_do_not_fill_the_notebook() {
-        let features = Features::resolve(
+        let features = resolve(
             None,
             &[Feature::Labels],
             &[Feature::Observations, Feature::Sales, Feature::Types],
@@ -465,7 +492,7 @@ mod tests {
     #[test]
     fn one_remaining_view_is_enough_to_show_the_notebook() {
         for kept in [Feature::Observations, Feature::Sales, Feature::Types] {
-            let features = Features::resolve(Some(Preset::Samples), &[kept], &[]).unwrap();
+            let features = resolve(Some(Preset::Samples), &[kept], &[]).unwrap();
 
             assert!(
                 features.notebook,
@@ -474,8 +501,42 @@ mod tests {
             );
         }
 
-        let sales_only =
-            Features::resolve(None, &[], &[Feature::Observations, Feature::Types]).unwrap();
+        let sales_only = resolve(None, &[], &[Feature::Observations, Feature::Types]).unwrap();
         assert!(sales_only.notebook && sales_only.sales);
+    }
+
+    /// The page can only show what the café measures: a count is not broken
+    /// down by a dimension the till never recorded.
+    #[test]
+    fn labels_are_not_shown_when_the_drink_is_not_measured() {
+        let metrics = Metrics::resolve(None, &[], &[Metric::Drink]).unwrap();
+        let features = Features::resolve(None, &[], &[], &metrics).unwrap();
+
+        assert!(!features.labels);
+        assert!(features.notebook && features.observations && features.sales);
+    }
+
+    /// A café measuring nothing and keeping no shelf would write entries that
+    /// are only a time, so the views made of entries close, and the roll — an
+    /// event log rather than a metric — holds the notebook open on its own.
+    #[test]
+    fn entries_with_nothing_in_them_are_not_written() {
+        let metrics =
+            Metrics::resolve(None, &[], &[Metric::CoffeesSold, Metric::Temperatures]).unwrap();
+        let features = Features::resolve(None, &[], &[Feature::Inventory], &metrics).unwrap();
+
+        assert!(!features.observations && !features.automatic_observations && !features.types);
+        assert!(features.sales && features.notebook);
+    }
+
+    /// The shelf is something to write down, so a café that keeps one keeps
+    /// its notebook too, even when it measures nothing else.
+    #[test]
+    fn the_shelf_alone_gives_the_observations_something_to_say() {
+        let metrics =
+            Metrics::resolve(None, &[], &[Metric::CoffeesSold, Metric::Temperatures]).unwrap();
+        let features = Features::resolve(None, &[], &[], &metrics).unwrap();
+
+        assert!(features.observations && features.types);
     }
 }
