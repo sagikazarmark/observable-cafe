@@ -5,12 +5,14 @@
 
 use std::ops::RangeInclusive;
 
+#[cfg(feature = "server")]
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
 use crate::clock;
 use crate::inventory::{Ingredient, Inventory};
 use crate::menu::{Drink, MENU};
+#[cfg(feature = "server")]
 use crate::season;
 
 /// Everything the café can say about itself right now.
@@ -24,9 +26,17 @@ pub struct Snapshot {
     pub clock: String,
     /// The day the café clock is on, for a notebook with nothing in it yet.
     pub day: String,
-    pub sold: Sales,
-    pub inside: Gauge,
-    pub outside: Gauge,
+    /// The till's running count, in a café that keeps one.
+    ///
+    /// `None` is no till counter rather than nothing sold yet: a café not
+    /// measuring its sales has no count anywhere, however many coffees it has
+    /// made. The page draws what the snapshot has, so nothing else needs to be
+    /// told what the café measures.
+    pub sold: Option<Sales>,
+    /// The thermometers, in a café that reads them. One instrument: a café
+    /// measures both of its temperatures or neither.
+    pub inside: Option<Gauge>,
+    pub outside: Option<Gauge>,
     pub observations: Vec<Observation>,
     /// Every sale, in the order they were rung up.
     ///
@@ -50,13 +60,13 @@ impl Snapshot {
         Self {
             clock: clock::written(opening),
             day: clock::dated(opening),
-            sold: Sales::default(),
-            inside: Gauge::inside(opening),
-            outside: Gauge::outside(opening),
+            // Not yet reported rather than not kept, all three: what this café
+            // measures is the server's to say, and it has not answered yet.
+            sold: None,
+            inside: None,
+            outside: None,
             observations: Vec::new(),
             sales: Vec::new(),
-            // Not yet reported rather than not kept: whether this café has a
-            // shelf is the server's to say, and it has not answered yet.
             inventory: None,
         }
     }
@@ -64,9 +74,11 @@ impl Snapshot {
     /// The readings one thermometer contributed to the notebook, oldest first.
     ///
     /// This is everything a chart of a gauge can honestly be drawn from: the
-    /// values between observations were never recorded anywhere.
-    pub fn recorded(&self, reading: fn(&Observation) -> i32) -> Vec<i32> {
-        self.observations.iter().map(reading).collect()
+    /// values between observations were never recorded anywhere. An entry
+    /// without the reading contributes nothing, which is what the entries of a
+    /// café that was not measuring it at the time look like.
+    pub fn recorded(&self, reading: fn(&Observation) -> Option<i32>) -> Vec<i32> {
+        self.observations.iter().filter_map(reading).collect()
     }
 
     /// The shelf readings the notebook holds for one ingredient, oldest
@@ -102,9 +114,11 @@ pub struct Observation {
     /// The day it was written on. A page left open runs past midnight after
     /// sixteen minutes, and `09:05` alone would then be two different moments.
     pub day: String,
-    pub sold: Sales,
-    pub inside: i32,
-    pub outside: i32,
+    /// The count as it stood, where the café keeps one.
+    pub sold: Option<Sales>,
+    /// The temperatures as they stood, where the café reads them.
+    pub inside: Option<i32>,
+    pub outside: Option<i32>,
     /// The shelf as it stood, where there was one to write down.
     pub inventory: Option<Inventory>,
 }
@@ -142,18 +156,23 @@ pub struct Sale {
     pub day: String,
     /// Which drink, as a position in [`MENU`], which is fixed. The name is not
     /// sent: the browser has the same menu.
-    drink: usize,
+    ///
+    /// `None` where the café does not measure the dimension: the sale was
+    /// written up without anybody noting which drink it was, so there is
+    /// nothing to remember rather than something withheld.
+    drink: Option<usize>,
 }
 
 impl Sale {
-    /// What was sold, if the menu still has it.
+    /// What was sold, if it was noted down and the menu still has it.
     pub fn drink(&self) -> Option<&'static Drink> {
-        MENU.get(self.drink)
+        self.drink.and_then(|drink| MENU.get(drink))
     }
 
-    /// Writes up one sale, identified by the drink’s position on the menu.
+    /// Writes up one sale, identified by the drink’s position on the menu
+    /// where the café noted which one it was.
     #[cfg(feature = "server")]
-    pub fn rung_up(seq: u64, at: String, day: String, drink: usize) -> Self {
+    pub fn rung_up(seq: u64, at: String, day: String, drink: Option<usize>) -> Self {
         Self {
             seq,
             at,
@@ -163,25 +182,54 @@ impl Sale {
     }
 }
 
-/// How many of each drink has been sold.
+/// How many coffees have been sold, in whichever shape the till keeps.
 ///
-/// Indexed by position in [`MENU`], which is fixed, so counts travel as four
-/// numbers rather than as names repeated on every observation.
-#[derive(Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
-pub struct Sales([u32; MENU.len()]);
+/// The shape is the record, not a view of it: a till that keeps one number
+/// never knew which drinks it counted, so there is no breakdown to be summed
+/// away or recovered. That is what a café without the drink dimension is.
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Sales {
+    /// One number: so many coffees, with no record of which.
+    Total(u32),
+    /// The same count kept per drink, indexed by position in [`MENU`], which
+    /// is fixed, so counts travel as four numbers rather than as names
+    /// repeated on every observation.
+    ByDrink([u32; MENU.len()]),
+}
 
 impl Sales {
+    /// A till that has sold nothing yet, counting the way it was asked to.
+    #[cfg(feature = "server")]
+    pub fn new(by_drink: bool) -> Self {
+        if by_drink {
+            Self::ByDrink([0; MENU.len()])
+        } else {
+            Self::Total(0)
+        }
+    }
+
     pub fn total(&self) -> u32 {
-        self.0.iter().sum()
+        match self {
+            Self::Total(count) => *count,
+            Self::ByDrink(counts) => counts.iter().sum(),
+        }
     }
 
     /// The drinks that have actually been sold, in menu order.
     ///
     /// A drink nobody has ordered is absent rather than zero: a series does
     /// not exist until something has been observed under it, which is why
-    /// graphs come out with gaps in them.
-    pub fn by_drink(&self) -> impl Iterator<Item = (&'static Drink, u32)> {
-        MENU.iter().zip(self.0).filter(|&(_, count)| count > 0)
+    /// graphs come out with gaps in them. A till keeping one number has no
+    /// drinks to offer at all, however many coffees that number holds.
+    pub fn by_drink(&self) -> impl Iterator<Item = (&'static Drink, u32)> + '_ {
+        let counts: &[u32] = match self {
+            Self::Total(_) => &[],
+            Self::ByDrink(counts) => counts,
+        };
+
+        MENU.iter()
+            .zip(counts.iter().copied())
+            .filter(|&(_, count)| count > 0)
     }
 
     /// Rings up one drink, identified by its position on the menu, and says
@@ -193,11 +241,15 @@ impl Sales {
     /// would have the café lie about the very thing it is demonstrating.
     #[cfg(feature = "server")]
     pub fn ring_up(&mut self, drink: usize) -> bool {
-        let Some(count) = self.0.get_mut(drink) else {
+        if drink >= MENU.len() {
             return false;
-        };
+        }
 
-        *count += 1;
+        match self {
+            Self::Total(count) => *count += 1,
+            Self::ByDrink(counts) => counts[drink] += 1,
+        }
+
         true
     }
 }
@@ -220,15 +272,22 @@ pub struct Gauge {
 
 impl Gauge {
     /// A thermometer indoors, reading what the season suggests it should.
+    ///
+    /// Only the café hangs a thermometer; the browser is handed its readings,
+    /// which is why the constructors live behind the server feature and
+    /// [`Gauge::record`] does too.
+    #[cfg(feature = "server")]
     pub fn inside(at: DateTime<Local>) -> Self {
         Self::new(season::inside(at), season::inside_range(at))
     }
 
     /// A thermometer outdoors, reading what the season suggests it should.
+    #[cfg(feature = "server")]
     pub fn outside(at: DateTime<Local>) -> Self {
         Self::new(season::outside(at), season::outside_range(at))
     }
 
+    #[cfg(feature = "server")]
     fn new(initial: i32, scale: RangeInclusive<i32>) -> Self {
         Self {
             value: initial,

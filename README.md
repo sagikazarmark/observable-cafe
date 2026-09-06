@@ -6,10 +6,11 @@ An interactive example for exploring metrics, either on its own or embedded in
 a course. A café owner sells coffee and keeps an eye on two thermometers, and
 every so often writes down what things look like.
 
-There is one page, and it is the café. What the café shows is decided when it
-starts and never changes afterwards, so a course that wants to introduce one
-idea at a time runs a café that shows only that idea. Nothing about it is
-chosen in the browser: a page has nothing to ask for and no way in.
+There is one page, and it is the café. What the café shows — and what it
+measures at all — is decided when it starts and never changes afterwards, so a
+course that wants to introduce one idea at a time runs a café that shows only
+that idea. Nothing about it is chosen in the browser: a page has nothing to
+ask for and no way in.
 
 ## What it can show
 
@@ -36,13 +37,15 @@ nothing down where anybody can see it, and it goes on meaning that when another
 feature is kept in the notebook later. Observations work the same way: turning
 them off stops the timer too, whether or not the timer was named.
 
-None of this reaches `/metrics`. That is built from the café rather than from
+No feature reaches `/metrics`. That is built from the café rather than from
 the notebook, and it reads no feature at all: a café showing no notebook still
-sells coffee, still moves its thermometers, and still publishes every series.
-`inventory` looks like an exception and is not: it changes the café rather
-than the page, so a café with a shelf publishes what is on it and a café
-without one has nothing to publish. The exposition reports the café either
-way.
+sells coffee, still moves its thermometers, and still publishes everything it
+measures. `inventory` looks like an exception and is not: it changes the café
+rather than the page, so a café with a shelf publishes what is on it and a
+café without one has nothing to publish. The exposition reports the café
+either way — which is also the only honest way to control it, when a course
+needs to: not by hiding series, but by running a café that measures less.
+That is the next section.
 
 **A notebook with nothing in it is not drawn.** Turn off observations, sales
 and types and it does not appear as an empty frame; the café takes the page to
@@ -57,44 +60,91 @@ worth more of. The shelf is answered on its own for the same reason, from the
 other side of the counter: a café that writes nothing down still runs out of
 milk, and a café with no shelf still keeps its record.
 
+## What it measures
+
+Features decide what the page shows. What data exists at all is the other
+axis: the café's instruments, asked for the same way and spelled the same
+everywhere.
+
+| Metric         | What the café measures                                       |
+| -------------- | ------------------------------------------------------------ |
+| `coffees-sold` | The till's running count of coffees sold.                    |
+| `drink`        | Which drink each sale was: the dimension the count is broken down by. |
+| `temperatures` | The two thermometers, inside and out.                        |
+
+A number the café does not measure exists nowhere — not on `/metrics`, not in
+the notebook, not on the page — because this is not a filter on the
+exposition; it is a smaller café. A café told not to measure the drink has a
+till that never knew which one it was: one unlabelled series on the wire,
+published from the first scrape, sales that say only that a coffee was sold,
+and no breakdown for the notebook to offer. A café told not to measure its
+temperatures has bare walls where the thermometers hung.
+
+`--collect` and `--no-collect` work the way `--enable` and `--disable` do,
+presets and all:
+
+```shell
+observable-cafe --no-collect drink
+observable-cafe --preset samples --collect temperatures
+```
+
+Two consequences reach the page, resolved the same silent way the notebook
+rules are:
+
+**The page can only show what the café measures.** `labels` is not shown
+without `drink`, however it was asked for: there is no dimension left to break
+the count down by. And a café measuring nothing at all — no count, no
+temperatures, no shelf — writes no entries, since an entry that is only a
+time teaches nothing. The sales roll stays: it is an event log rather than a
+metric, and the coffee was sold whether or not anything counted it.
+
+**The shelf is not a metric.** Beans and milk answer to `inventory` alone: a
+café without a shelf has unlimited beans and milk rather than unmeasured
+ones, and nothing to publish, while a café with one publishes what is on it,
+roast label included — the two roasts running out separately is the lesson
+the shelf is there to teach, so the label rides with it.
+
 ## Presets
 
-A preset is a named set of features to start from, and it starts from nothing:
-it shows what it names and no more. That is deliberate. A feature added to the
-café later joins the café that was asked for by default and none of the
-presets, so an example built against `samples` goes on showing exactly what it
-showed when it was written.
+A preset is a named set of features and metrics to start from, and it starts
+from nothing: it shows what it names, measures what it names, and no more.
+That is deliberate. A feature or a metric added to the café later joins the
+café that was asked for by default and none of the presets, so an example
+built against `samples` goes on showing — and serving at `/metrics` — exactly
+what it did when it was written.
 
-| Preset    | What it shows                                                     |
-| --------- | ----------------------------------------------------------------- |
-| `samples` | The notebook, filled on a timer. A record is made of samples, and whatever happens between them is not kept. |
-| `labels`  | The same, with counts broken down by drink.                       |
-| `types`   | The same again, with the metrics view: a counter and a gauge are different kinds of number. |
+| Preset    | What it shows                                                     | What it measures |
+| --------- | ----------------------------------------------------------------- | ---------------- |
+| `samples` | The notebook, filled on a timer. A record is made of samples, and whatever happens between them is not kept. | The count of coffees sold: one unlabelled counter, and nothing else. |
+| `labels`  | The same, with counts broken down by drink.                       | The count, and which drink it was. |
+| `types`   | The same again, with the metrics view: a counter and a gauge are different kinds of number. | The count, the drink, and the temperatures: both kinds of number. |
 
 These are the three stages the café used to be a ladder of, kept because a
 course page built against one of them should go on working. None of them names
 the sign or the shelf, which both arrived after all three; `--enable header`
 and `--enable inventory` put them back.
 
-`--enable` and `--disable` then have the last word, so an example can start
-from a preset and still differ from it in one place:
+`--enable`, `--disable`, `--collect` and `--no-collect` then have the last
+word, so an example can start from a preset and still differ from it in one
+place:
 
 ```shell
 observable-cafe --preset samples --enable sales
 observable-cafe --preset types --disable automatic-observations
+observable-cafe --preset labels --collect temperatures
 observable-cafe --disable notebook
 observable-cafe --disable header       # embedded in a page that already names it
 ```
 
-Naming a feature in both is refused rather than resolved one way or the other:
-nobody means both, so it is a mistake to report rather than a preference to
-honour.
+Naming a feature — or a metric — in both is refused rather than resolved one
+way or the other: nobody means both, so it is a mistake to report rather than
+a preference to honour.
 
 ## Endpoints
 
 `/metrics` is the scrape endpoint, in the format every scraper reads. There is
-one of them and it is always the full exposition, whatever the page is showing,
-so it always looks like a real target.
+one of them and it is always the full exposition of everything the café
+measures, whatever the page is showing, so it always looks like a real target.
 
 `/version` reports which build is running, as one line of plain text. Every
 page also carries the same string in its head as
@@ -126,7 +176,9 @@ counted, which is why they are two tabs rather than one list. The roll is
 printed and the notebook is handwritten so that the two are told apart at a
 glance. Without `labels` a sale says only that a coffee was sold: the café
 knows which drink it was, and this record does not keep the dimension, which is
-what a café without labels actually looks like.
+what a café without labels actually looks like. Without `drink` in what the
+café measures, not even the café knows — the roll reads the same either way,
+and the difference lives entirely in what `/metrics` can answer afterwards.
 
 **The customer never sees the shelf.** With `inventory` on, every sale takes
 its recipe off it — eighteen grams of beans a drink, light roast for the

@@ -132,8 +132,15 @@ pub fn start() {
                     cafe.tick += 1;
 
                     let now = clock::at(cafe.tick);
-                    cafe.inside.tick(&mut rng, now);
-                    cafe.outside.tick(&mut rng, now);
+
+                    // The thermometers this café has: one not being read is
+                    // not stuck weather, it is no thermometer at all.
+                    if let Some(inside) = &mut cafe.inside {
+                        inside.tick(&mut rng, now);
+                    }
+                    if let Some(outside) = &mut cafe.outside {
+                        outside.tick(&mut rng, now);
+                    }
 
                     if cafe.observation_due() {
                         cafe.observe();

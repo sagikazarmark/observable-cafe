@@ -5,6 +5,10 @@ mod components;
 mod feature;
 mod inventory;
 mod menu;
+mod metric;
+// The seasons only matter to the half of the build that runs thermometers:
+// the browser is handed readings, never the weather behind them.
+#[cfg(feature = "server")]
 mod season;
 mod state;
 
@@ -28,7 +32,7 @@ fn main() {
             std::process::exit(2);
         });
 
-        server::launch(options.features);
+        server::launch(options.features, options.metrics);
     }
 
     #[cfg(not(feature = "server"))]
