@@ -759,28 +759,6 @@ button, input { font: inherit; }
 
 .eighty-six-reason { color: var(--refused); font-size: .85rem; font-weight: 600; }
 
-/* Stacked, the two panels no longer fit side by side, so let the page scroll. */
-@media (max-width: 900px) {
-    .app { height: auto; min-height: 100dvh; }
-    .layout { grid-template-columns: 1fr; }
-    .notebook-panel { min-height: auto; }
-    .observations, .cards { min-height: 520px; }
-}
-
-@media (max-width: 560px) {
-    .app { width: min(100% - 20px, 1180px); padding-top: 12px; }
-    /* The bar has a clock, an interval and two buttons to fit as well. The
-       mark alone still says whose café this is. */
-    .masthead-name { display: none; }
-    .cafe-panel { padding: 15px; border-radius: 22px; }
-    .coffee-grid, .thermometers { grid-template-columns: 1fr; }
-    .coffee-card { min-height: 126px; }
-    .observations { padding: 20px 16px 18px 56px; }
-    .view-header { flex-direction: column; align-items: flex-start; }
-    .date-stamp { align-self: flex-end; }
-    .entry { grid-template-columns: 1fr; gap: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -822,3 +800,60 @@ button, input { font: inherit; }
 .sale-time { color: var(--coffee); }
 .sale-drink { color: var(--ink); font-weight: 600; }
 .sale-seq { color: var(--muted); font-size: .74rem; }
+
+/* A half-width laptop window still has room for the café beside its record.
+   Spend less on padding and binding before giving up that comparison. */
+@media (max-width: 1000px) {
+    .app { width: calc(100% - 20px); padding: 12px 0; }
+    .bar { flex-wrap: wrap; gap: 10px; }
+    .bar-actions { margin-left: auto; }
+    .layout { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 12px; }
+    .cafe-panel { min-height: 0; overflow-y: auto; padding: 12px; border-radius: 22px; }
+    .notebook-panel { min-width: 0; }
+    .coffee-grid { gap: 8px; }
+    .coffee-card { min-height: 120px; padding: 10px; border-radius: 16px; }
+    .coffee-icon { width: 36px; height: 36px; margin-bottom: 8px; border-radius: 12px; font-size: 1.5rem; }
+    .thermometers { grid-template-columns: 1fr; gap: 8px; padding-top: 14px; }
+    .thermo-card { grid-template-columns: 28px 1fr; gap: 10px; padding: 10px; border-radius: 16px; }
+    .thermo { height: 56px; }
+    .temp-value { font-size: 1.6rem; }
+    .tabs { gap: 4px; padding-left: 12px; }
+    .tab { padding: 7px 10px; }
+    .observations {
+        padding: 16px 14px 14px 40px;
+        background:
+            linear-gradient(90deg, transparent 0 28px, var(--paper-margin) 28px 30px, transparent 30px),
+            repeating-linear-gradient(0deg, transparent 0 31px, var(--paper-line) 31px 32px),
+            var(--paper);
+    }
+    .view-header { flex-wrap: wrap; gap: 8px; }
+    .date-stamp { margin-left: auto; }
+    .entries { font-size: 1.12rem; }
+    .entry { grid-template-columns: 3em minmax(0, 1fr); gap: 0 8px; padding-inline: 4px; }
+    .cards, .sales { padding: 14px; }
+    .metric { padding: 12px; }
+    .metric-topline, .metric-value-row { flex-wrap: wrap; gap: 8px; }
+    .sale { gap: 8px; padding-inline: 0; }
+}
+
+@media (max-width: 760px) {
+    /* The mark alone leaves room for the clock and observation controls. */
+    .masthead-name { display: none; }
+}
+
+/* Phone-sized windows stack the panels and let the page scroll. */
+@media (max-width: 640px) {
+    .app { height: auto; min-height: 100dvh; }
+    .layout { grid-template-columns: 1fr; }
+    .cafe-panel { overflow-y: visible; }
+    .observations, .cards, .sales { min-height: 520px; }
+}
+
+@media (max-width: 560px) {
+    .cafe-panel { padding: 15px; }
+    .coffee-grid { grid-template-columns: 1fr; }
+    .coffee-card { min-height: 126px; }
+    .view-header { flex-direction: column; align-items: flex-start; }
+    .date-stamp { align-self: flex-end; }
+    .entry { grid-template-columns: 1fr; gap: 0; }
+}
